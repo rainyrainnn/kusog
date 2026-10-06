@@ -9,8 +9,6 @@ export function ChamberScene({ sim, showBoxes = false }: Props) {
   const running = sim.isTestRunning;
   const fanSpinning = running && sim.fanSpeed > 0;
   const fanDur = Math.max(0.3, 2 - sim.fanSpeed / 60);
-  const rainCount = running ? Math.round((sim.rainValue / 100) * 48) : 0;
-  const sprayCount = running ? Math.round((sim.rainValue / 100) * 24) : 0;
   const critical = sim.aiDetections.overall === 'CRITICAL';
   const boxColor = !running ? '#475569' : critical ? '#ef4444' : '#22c55e';
 
@@ -141,77 +139,6 @@ export function ChamberScene({ sim, showBoxes = false }: Props) {
               style={{ animationDelay: `${i * 0.3}s` }}
             />
           ))}
-
-        {/* Rain nozzle array */}
-        <g transform="translate(348,0)">
-          {[0, 1, 2, 3].map((i) => (
-            <g key={i}>
-              <rect x="0" y={100 + i * 16} width="14" height="4" rx="2" fill="#1c2942" stroke="#0ea5e9" strokeOpacity="0.5" />
-              <rect x="2" y={100 + i * 16} width="2" height="4" fill="#0ea5e9" fillOpacity="0.4" />
-            </g>
-          ))}
-        </g>
-
-        {/* Spray droplets from nozzles */}
-        {Array.from({ length: sprayCount }).map((_, i) => {
-          const nozzle = i % 4;
-          const y = 102 + nozzle * 16;
-          return (
-            <circle
-              key={`sp${i}`}
-              cx="348"
-              cy={y}
-              r="1.6"
-              fill="#38bdf8"
-              fillOpacity="0.75"
-              className="animate-rain-fall"
-              style={{
-                animationDelay: `${(i * 0.07) % 0.9}s`,
-                animationDuration: `${0.6 + (i % 4) * 0.12}s`,
-                transformOrigin: `348px ${y}px`,
-              }}
-            />
-          );
-        })}
-
-        {/* Rain streaks from top */}
-        {Array.from({ length: rainCount }).map((_, i) => {
-          const x = 28 + (i * 9) % 340;
-          return (
-            <line
-              key={`r${i}`}
-              x1={x}
-              y1="22"
-              x2={x - 5}
-              y2="38"
-              stroke="#38bdf8"
-              strokeOpacity="0.35"
-              strokeWidth="1"
-              className="animate-rain-fall"
-              style={{
-                animationDelay: `${(i * 0.04) % 0.9}s`,
-                transformOrigin: `${x}px 22px`,
-              }}
-            />
-          );
-        })}
-
-        {/* Rain intensity label */}
-        {running && sim.rainValue > 0 && (
-          <text x="370" y="92" fontSize="7" fill="#38bdf8" fontFamily="monospace" textAnchor="middle" fillOpacity="0.8">
-            {sim.rainValue}%
-          </text>
-        )}
-
-        {/* Floor puddle / reflection */}
-        <ellipse
-          cx="200"
-          cy="196"
-          rx="65"
-          ry="5"
-          fill="#0ea5e9"
-          fillOpacity={running && sim.rainValue > 20 ? 0.12 : 0.04}
-        />
 
         {/* Sensor nodes on walls */}
         {[[30, 60], [370, 60], [30, 140], [370, 140]].map(([x, y], i) => (

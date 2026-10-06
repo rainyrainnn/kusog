@@ -1,49 +1,44 @@
-import { CloudRain, Check } from 'lucide-react';
+import { CloudRain } from 'lucide-react';
 import { Panel } from '../Panel';
-import type { RainLevel, Simulation } from '@/hooks/useSimulation';
+import type { RainSensorData } from '@/lib/rainSensor';
 
-const LEVELS: RainLevel[] = ['Light', 'Moderate', 'Heavy', 'Extreme'];
-const COLORS: Record<RainLevel, string> = {
-  Light: 'text-accent-400 border-accent-500/40 bg-accent-500/10',
-  Moderate: 'text-warn-400 border-warn-500/40 bg-warn-500/10',
-  Heavy: 'text-ok-400 border-ok-500/40 bg-ok-500/10',
-  Extreme: 'text-danger-400 border-danger-500/40 bg-danger-500/10',
-};
+export function RainControl({ sensor, sensorError, loading }: { sensor: RainSensorData; sensorError: string | null; loading: boolean }) {
+  const rainDetected = sensor.rainState.toLowerCase() === 'rain';
+  const status = loading
+    ? 'LOADING'
+    : sensorError
+      ? 'ERROR'
+      : sensor.connected
+        ? rainDetected ? 'RAIN DETECTED' : sensor.rainState.toLowerCase() === 'normal' ? 'NO RAIN' : 'UNKNOWN'
+        : sensor.offline ? 'OFFLINE' : 'WAITING';
+  const statusColor = loading ? 'text-slate-400' : sensorError ? 'text-warn-400' : sensor.connected ? rainDetected ? 'text-warn-400' : 'text-ok-400' : sensor.offline ? 'text-danger-400' : 'text-slate-400';
+  const hasReading = sensor.recordedAt !== null;
 
-export function RainControl({ sim }: { sim: Simulation }) {
   return (
-    <Panel title="Rain Intensity Control" icon={<CloudRain className="h-4 w-4" />} className="h-full">
-      <div className="flex h-full flex-col justify-center gap-4">
-        <div className="grid grid-cols-4 gap-1.5">
-          {LEVELS.map((lvl) => {
-            const active = sim.rainLevel === lvl;
-            return (
-              <button
-                key={lvl}
-                onClick={() => sim.setRainLevel(lvl)}
-                className={`rounded-md border py-2 text-[11px] font-semibold uppercase tracking-wide transition ${
-                  active
-                    ? COLORS[lvl]
-                    : 'border-base-600/70 bg-base-700/60 text-slate-400 hover:border-slate-500 hover:text-slate-200'
-                }`}
-              >
-                {lvl}
-              </button>
-            );
-          })}
+    <Panel title="Rain Sensor" icon={<CloudRain className="h-4 w-4" />} right={<span className="text-[10px] font-semibold uppercase tracking-wider text-accent-400">Live · Read only</span>} className="h-full">
+      <div className="flex h-full flex-col justify-center gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs text-slate-400">Rain Status</span>
+          <span className={`text-right text-xs font-bold ${statusColor}`}>{status}</span>
         </div>
-
-        <div className="flex items-center justify-between rounded-lg border border-base-600/70 bg-base-900/60 px-3 py-2.5">
-          <span className="text-xs text-slate-400">Intensity Output</span>
-          <span className="font-mono text-2xl font-bold text-ok-400">{sim.rainValue}%</span>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs text-slate-400">Rain Level</span>
+          <span className="font-mono text-sm font-bold text-slate-200">{hasReading ? sensor.rainLevel : '—'}</span>
         </div>
-
-        <button
-          onClick={sim.applyControls}
-          className="flex items-center justify-center gap-2 rounded-lg bg-ok-500/15 py-2.5 text-sm font-bold uppercase tracking-widest text-ok-400 border border-ok-500/40 transition hover:bg-ok-500 hover:text-white"
-        >
-          <Check className="h-4 w-4" /> Apply
-        </button>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2 border-t border-base-700/70 pt-2 text-xs">
+          <span className="text-slate-500">Rain State</span>
+          <span className="text-right font-mono text-slate-300">{hasReading ? sensor.rainState : '—'}</span>
+          <span className="text-slate-500">Rain 24h</span>
+          <span className="text-right font-mono text-slate-300">{hasReading && sensor.rain24h !== null ? sensor.rain24h : '—'}</span>
+          <span className="text-slate-500">Battery Percentage</span>
+          <span className="text-right font-mono text-slate-300">{hasReading && sensor.batteryPercentage !== null ? `${sensor.batteryPercentage}%` : '—'}</span>
+          <span className="text-slate-500">Sensor</span>
+          <span className={`text-right font-semibold ${sensor.connected ? 'text-ok-400' : sensorError ? 'text-warn-400' : sensor.offline ? 'text-danger-400' : 'text-slate-400'}`}>{loading ? 'LOADING' : sensorError ? 'ERROR' : sensor.connected ? 'CONNECTED' : sensor.offline ? 'DISCONNECTED' : 'WAITING'}</span>
+        </div>
+        <p className="text-[10px] text-slate-600">Last Updated {sensor.recordedAt ? new Date(sensor.recordedAt).toLocaleString() : '—'}</p>
+        {loading && <p className="text-[10px] text-slate-400">Loading latest reading from Supabase...</p>}
+        {!loading && sensorError && <p role="alert" className="text-[10px] text-warn-400/80">Unable to load rain sensor data: {sensorError}</p>}
+        {!loading && !sensorError && !sensor.connected && <p className="text-[10px] text-slate-500">{sensor.offline ? sensor.recordedAt ? 'No recent reading from Raspberry Pi.' : 'No readings received within the offline timeout.' : 'Waiting for the first rain sensor reading.'}</p>}
       </div>
     </Panel>
   );

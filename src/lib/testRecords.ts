@@ -37,6 +37,11 @@ export type TestRecord = {
   // controls snapshot
   fan_speed: number;
   rain_level: string;
+  rain_level_raw: string | null;
+  rain_state: string | null;
+  rain_24h: number | null;
+  rain_battery: number | null;
+  rain_sensor_connected: boolean | null;
   wind_direction: number;
   // camera
   camera_status: string;

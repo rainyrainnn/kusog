@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { FileText, FileDown, ChevronDown, CheckCircle2, Loader2 } from 'lucide-react';
 import { Panel } from '../Panel';
-import { fmtDate, fmtClock, fmtElapsed, type Simulation } from '@/hooks/useSimulation';
+import { fmtElapsed, type Simulation } from '@/hooks/useSimulation';
 import { fetchTestRecords, type TestRecord } from '@/lib/testRecords';
 import { generatePdf } from '@/lib/pdfReport';
 import { useEffect } from 'react';
+import type { RainSensorData } from '@/lib/rainSensor';
 
 type GenState = 'idle' | 'generating' | 'done';
 
-export function ReportGeneration({ sim }: { sim: Simulation }) {
+export function ReportGeneration({ sim, rainSensor }: { sim: Simulation; rainSensor: RainSensorData }) {
   const [open, setOpen] = useState(false);
   const [records, setRecords] = useState<TestRecord[]>([]);
   const [selected, setSelected] = useState<string>('');
@@ -43,7 +44,7 @@ export function ReportGeneration({ sim }: { sim: Simulation }) {
         roof_material: sim.house.roofMaterial || null,
         floor_material: sim.house.floorMaterial || null,
         other_materials: sim.house.otherMaterials || null,
-        wind_speed: sim.windSpeed,
+        wind_speed: sim.windSpeed * 3.6,
         temperature: sim.temperature,
         humidity: sim.humidity,
         pressure: sim.pressure,
@@ -54,7 +55,12 @@ export function ReportGeneration({ sim }: { sim: Simulation }) {
         ai_cracks: sim.aiDetections.cracks,
         ai_overall: sim.aiDetections.overall,
         fan_speed: sim.fanSpeed,
-        rain_level: sim.rainLevel,
+        rain_level: rainSensor.connected ? String(rainSensor.rawRainLevel) : 'Unknown',
+        rain_level_raw: rainSensor.connected ? String(rainSensor.rawRainLevel) : null,
+        rain_state: rainSensor.connected ? rainSensor.rainState : null,
+        rain_24h: rainSensor.connected ? rainSensor.rain24h : null,
+        rain_battery: rainSensor.connected ? rainSensor.batteryPercentage : null,
+        rain_sensor_connected: rainSensor.connected,
         wind_direction: sim.windDir,
         camera_status: 'disconnected',
         camera_stream_url: null,

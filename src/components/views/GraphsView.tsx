@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Weight, LineChart, Clock } from 'lucide-react';
+import { Weight, LineChart, Clock, Wind } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { Panel } from '@/components/Panel';
 import { PageHeader } from '@/components/PageHeader';
 import type { Simulation, TelemetryPoint } from '@/hooks/useSimulation';
@@ -29,15 +30,16 @@ const RANGES = [
   { label: 'All', value: 9999 },
 ];
 
-function BigChart({ data, color, yLabel, yDomain, badge }: {
+function BigChart({ data, color, yLabel, yDomain, badge, icon = <Weight className="h-4 w-4" /> }: {
   data: TelemetryPoint[];
   color: string;
   yLabel: string;
   yDomain: [number, number];
   badge: string;
+  icon?: ReactNode;
 }) {
   return (
-    <Panel title={badge} icon={<Weight className="h-4 w-4" />} className="h-full" bodyClassName="p-3">
+    <Panel title={badge} icon={icon} className="h-full" bodyClassName="p-3">
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 8, right: 12, bottom: 6, left: 0 }}>
@@ -50,7 +52,7 @@ function BigChart({ data, color, yLabel, yDomain, badge }: {
             <CartesianGrid stroke="#1c2942" strokeDasharray="3 3" />
             <XAxis dataKey="t" tick={{ fontSize: 10, fill: '#475569' }} stroke="#1c2942" tickLine={false} interval="preserveStartEnd" minTickGap={40} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fontSize: 10, fill: '#475569' }} />
             <YAxis tick={{ fontSize: 10, fill: '#475569' }} stroke="#1c2942" tickLine={false} domain={yDomain} width={44} label={{ value: yLabel, angle: -90, position: 'insideLeft', fontSize: 10, fill: '#475569' }} />
-            <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => [Number(v).toFixed(2), yLabel]} labelFormatter={(t) => `t = ${t}s`} />
+            <Tooltip contentStyle={tooltipStyle} formatter={(value) => [Number(value).toFixed(2), yLabel]} labelFormatter={(t) => `t = ${t}s`} />
             <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2} fill={`url(#big-${color})`} isAnimationActive={false} dot={false} />
             <ReferenceLine y={yDomain[0]} stroke="#1c2942" />
           </AreaChart>
@@ -88,12 +90,29 @@ export function GraphsView({ sim }: { sim: Simulation }) {
         <div className="ml-auto flex items-center gap-3 text-xs">
           <div className="flex items-center gap-2 rounded-lg border border-base-600/70 bg-base-800/60 px-3 py-1.5">
             <span className="text-[10px] uppercase tracking-wider text-slate-500">Current Force</span>
-            <span className="font-mono text-sm font-bold text-ok-400">{sim.currentForce.toFixed(1)} N</span>
+            <span className={`font-mono text-sm font-bold ${sim.loadCellConnected ? 'text-ok-400' : 'text-danger-400'}`}>
+              {sim.loadCellConnected ? `${sim.currentForce.toFixed(1)} N` : 'Base Uplift Sensor Offline'}
+            </span>
           </div>
         </div>
       </div>
 
       <BigChart data={slice(sim.forceHist)} color="#4ade80" yLabel="N" yDomain={[0, 60]} badge="Base Uplift Force (Load Cell)" />
+
+      <div className="flex items-center justify-between rounded-lg border border-base-600/70 bg-base-800/60 px-4 py-3">
+        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Wind Sensor</span>
+        <span className={`font-mono text-sm font-bold ${sim.windSensorConnected ? 'text-ok-400' : 'text-danger-400'}`}>
+          {sim.windSensorConnected ? `${sim.windSpeed.toFixed(1)} m/s · ${sim.windDir.toFixed(1)}° · LIVE` : 'Wind Sensor Offline'}
+        </span>
+      </div>
+      <BigChart
+        data={slice(sim.windHist)}
+        color="#38bdf8"
+        yLabel="m/s"
+        yDomain={[0, 60]}
+        badge="Wind Speed History (m/s)"
+        icon={<Wind className="h-4 w-4" />}
+      />
 
       <div className="rounded-xl border border-base-600/70 bg-base-800/60 p-4">
         <div className="flex items-center gap-3">
@@ -103,7 +122,9 @@ export function GraphsView({ sim }: { sim: Simulation }) {
           <div>
             <p className="text-[10px] uppercase tracking-widest text-slate-500">Current Force</p>
             <p className="font-mono text-2xl font-bold text-ok-400">
-              {sim.currentForce.toFixed(1)}<span className="ml-1 text-sm text-slate-500">N</span>
+              {sim.loadCellConnected
+                ? <>{sim.currentForce.toFixed(1)}<span className="ml-1 text-sm text-slate-500">N</span></>
+                : <span className="text-base text-danger-400">Base Uplift Sensor Offline</span>}
             </p>
           </div>
         </div>

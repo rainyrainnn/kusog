@@ -221,16 +221,20 @@ export async function generatePdf(record: TestRecord, generatedAt: Date): Promis
     styles: cellStyle,
   });
 
-  // ── 6. CONTROL SETTINGS ───────────────────────────────────────────────────
+  // ── 6. SENSOR AND CONTROL DATA ────────────────────────────────────────────
   y = ensurePage(doc, 40);
-  y = sectionTitle(doc, 'Control Settings', y, '6');
+  y = sectionTitle(doc, 'Sensor and Control Data', y, '6');
 
   autoTable(doc, {
     startY: y,
-    head: [['Control', 'Value']],
+    head: [['Field', 'Value']],
     body: [
       ['Fan Speed',       `${record.fan_speed ?? '—'}%`],
-      ['Rain Intensity',  record.rain_level ?? '—'],
+      ['Rain Level (raw)', record.rain_level_raw ?? record.rain_level ?? '—'],
+      ['Rain State', record.rain_state ?? '—'],
+      ['24h Rain', record.rain_24h ?? '—'],
+      ['Rain Sensor Battery', record.rain_battery === null || record.rain_battery === undefined ? '—' : `${record.rain_battery}%`],
+      ['Rain Sensor Connection', record.rain_sensor_connected === undefined ? '—' : record.rain_sensor_connected ? 'Connected' : 'Disconnected'],
       ['Wind Direction',  `${record.wind_direction ?? '—'}°`],
     ],
     theme: 'striped',

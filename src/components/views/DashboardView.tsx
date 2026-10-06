@@ -12,8 +12,9 @@ import { TestLog } from '@/components/panels/TestLog';
 import { AiAssessment } from '@/components/panels/AiAssessment';
 import { ReportGeneration } from '@/components/panels/ReportGeneration';
 import { HouseSetup } from '@/components/panels/HouseSetup';
+import type { RainSensorData } from '@/lib/rainSensor';
 
-export function DashboardView({ sim, onNavigate }: { sim: Simulation; onNavigate: (r: RouteId) => void }) {
+export function DashboardView({ sim, rainSensor, sensorError, sensorLoading, onNavigate }: { sim: Simulation; rainSensor: RainSensorData; sensorError: string | null; sensorLoading: boolean; onNavigate: (r: RouteId) => void }) {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-12 gap-3">
@@ -27,7 +28,7 @@ export function DashboardView({ sim, onNavigate }: { sim: Simulation; onNavigate
           <FanControl sim={sim} />
         </div>
         <div className="col-span-12 xl:col-span-3">
-          <RainControl sim={sim} />
+          <RainControl sensor={rainSensor} sensorError={sensorError} loading={sensorLoading} />
         </div>
       </div>
 
@@ -64,7 +65,7 @@ export function DashboardView({ sim, onNavigate }: { sim: Simulation; onNavigate
           <AiAssessment sim={sim} />
         </div>
         <div className="col-span-12 lg:col-span-3">
-          <ReportGeneration sim={sim} />
+          <ReportGeneration sim={sim} rainSensor={rainSensor} />
         </div>
       </div>
     </div>

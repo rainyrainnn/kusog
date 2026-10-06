@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { saveTestRecord } from '@/lib/testRecords';
+import type { RainSensorData } from '@/lib/rainSensor';
+import type { LoadCellData } from '@/lib/loadCell';
+import type { WindSensorData } from '@/lib/windSensor';
 
 
 export type LogEntry = {
@@ -7,15 +10,6 @@ export type LogEntry = {
   time: string;
   message: string;
   level: 'info' | 'warn' | 'ok' | 'error';
-};
-
-export type RainLevel = 'Light' | 'Moderate' | 'Heavy' | 'Extreme';
-
-export const RAIN_VALUES: Record<RainLevel, number> = {
-  Light: 25,
-  Moderate: 50,
-  Heavy: 70,
-  Extreme: 100,
 };
 
 export const TEST_SCENARIOS = [
@@ -105,7 +99,7 @@ export const EMPTY_HOUSE: HouseSelection = {
   otherMaterials: '',
 };
 
-export function useSimulation() {
+export function useSimulation({ rainSensor, loadCell, windSensor }: { rainSensor: RainSensorData; loadCell: LoadCellData; windSensor: WindSensorData }) {
   // Clock
   const [now, setNow] = useState(() => new Date());
 
@@ -121,16 +115,15 @@ export function useSimulation() {
 
   // Controls
   const [fanSpeed, setFanSpeed] = useState(0);
-  const [rainLevel, setRainLevel] = useState<RainLevel>('Light');
-  const [windDir, setWindDir] = useState(45);
 
   // Telemetry
-  const [windSpeed, setWindSpeed] = useState(0);
+  const windSpeed = windSensor.connected ? windSensor.windSpeedMps ?? 0 : 0;
+  const windDir = windSensor.connected ? windSensor.windDirectionDeg ?? 0 : 0;
   const [temperature, setTemperature] = useState(26.5);
   const [humidity, setHumidity] = useState(55);
   const [pressure, setPressure] = useState(1013);
   const [aiConfidence, setAiConfidence] = useState(0);
-  const [currentForce, setCurrentForce] = useState(0);
+  const currentForce = loadCell.connected ? loadCell.upliftForceN ?? 0 : 0;
 
   // AI detections
   const [aiDetections, setAiDetections] = useState({
@@ -142,12 +135,12 @@ export function useSimulation() {
 
   // Graph data
   const [forceHist, setForceHist] = useState<TelemetryPoint[]>([]);
-  const tickRef = useRef(0);
+  const forceTickRef = useRef(0);
 
   // Logs
   const [logs, setLogs] = useState<LogEntry[]>([
     { id: 1, time: fmtClock(new Date()), message: 'System initialized — KUSOG Control Center v2.4', level: 'info' },
-    { id: 2, time: fmtClock(new Date()), message: 'Load Cell sensor calibrated — ready', level: 'ok' },
+    { id: 2, time: fmtClock(new Date()), message: 'Waiting for live load cell data', level: 'info' },
     { id: 3, time: fmtClock(new Date()), message: 'AI model loaded — structural analysis ready', level: 'ok' },
     { id: 4, time: fmtClock(new Date()), message: 'Awaiting test initialization', level: 'info' },
   ]);
@@ -166,43 +159,41 @@ export function useSimulation() {
   // Main telemetry tick
   useEffect(() => {
     const t = setInterval(() => {
-      tickRef.current += 1;
-      const tick = tickRef.current;
-
       if (isTestRunning) {
         setElapsed((e) => e + 1);
 
-        setWindSpeed((w) => {
-          const target = (fanSpeed / 100) * 120 + (Math.random() - 0.5) * 3;
-          return Math.max(0, +(w + (target - w) * 0.2).toFixed(1));
-        });
-
         setTemperature((t) => +(t + (Math.random() - 0.5) * 0.06).toFixed(1));
         setHumidity((h) => {
-          const target = 55 + (RAIN_VALUES[rainLevel] / 100) * 35;
+          const target = 55;
           return Math.max(0, Math.min(100, +(h + (target - h) * 0.08 + (Math.random() - 0.5) * 0.4).toFixed(1)));
         });
         setPressure((p) => {
-          const target = 1013 - (fanSpeed / 100) * 18 - (RAIN_VALUES[rainLevel] / 100) * 5;
+          const target = 1013 - (fanSpeed / 100) * 18;
           return Math.round(p + (target - p) * 0.1 + (Math.random() - 0.5) * 0.5);
         });
 
         setAiConfidence((c) => Math.max(85, Math.min(99, c + Math.round((Math.random() - 0.5) * 1.2))));
 
-        // Force
-        const fVal = Math.max(0, +(15 + (fanSpeed / 100) * 28 + (RAIN_VALUES[rainLevel] / 100) * 6 + (Math.random() - 0.5) * 4).toFixed(1));
-        setForceHist((prev) => [...prev.slice(-(HISTORY_LEN - 1)), { t: tick, value: fVal }]);
-        setCurrentForce(fVal);
       } else {
-        const fVal = +(Math.random() * 0.2).toFixed(1);
-        setForceHist((prev) => [...prev.slice(-(HISTORY_LEN - 1)), { t: tick, value: fVal }]);
-        setWindSpeed(0);
         setAiConfidence(0);
-        setCurrentForce(0);
       }
     }, 1000);
     return () => clearInterval(t);
-  }, [isTestRunning, fanSpeed, rainLevel]);
+  }, [isTestRunning, fanSpeed]);
+
+  useEffect(() => {
+    if (!loadCell.connected || !loadCell.recordedAt) {
+      forceTickRef.current = 0;
+      setForceHist([]);
+      return;
+    }
+
+    forceTickRef.current += 1;
+    setForceHist((previous) => [
+      ...previous.slice(-(HISTORY_LEN - 1)),
+      { t: forceTickRef.current, value: loadCell.upliftForceN ?? 0 },
+    ]);
+  }, [loadCell.connected, loadCell.recordedAt, loadCell.upliftForceN]);
 
   // AI detections react to telemetry
   useEffect(() => {
@@ -210,25 +201,28 @@ export function useSimulation() {
       setAiDetections({ roof: 'NORMAL', movement: 'NORMAL', cracks: 'NONE', overall: 'STANDBY' });
       return;
     }
-    const stress = (windSpeed / 120) * 0.6 + (RAIN_VALUES[rainLevel] / 100) * 0.4;
+    const stress = windSpeed / 60;
     setAiDetections({
       roof:     stress > 0.85 ? 'DETECTED' : 'NORMAL',
       movement: stress > 0.7  ? 'WARNING'  : 'NORMAL',
       cracks:   stress > 0.9  ? 'DETECTED' : 'NONE',
       overall:  stress > 0.85 ? 'CRITICAL' : 'SAFE',
     });
-  }, [isTestRunning, windSpeed, rainLevel]);
+  }, [isTestRunning, windSpeed]);
 
   // Snapshot of key values for saving — captured via refs so stopTest closure is stable
   const snapshotRef = useRef({
     windSpeed: 0, temperature: 26.5, humidity: 55, pressure: 1013,
     aiConfidence: 0, currentForce: 0, aiDetections: { roof: 'NORMAL', movement: 'NORMAL', cracks: 'NONE', overall: 'STANDBY' },
-    fanSpeed: 0, rainLevel: 'Light' as RainLevel, windDir: 45,
+    fanSpeed: 0, windDir: 45, rainSensor,
   });
 
   useEffect(() => {
-    snapshotRef.current = { windSpeed, temperature, humidity, pressure, aiConfidence, currentForce, aiDetections, fanSpeed, rainLevel, windDir };
-  }, [windSpeed, temperature, humidity, pressure, aiConfidence, currentForce, aiDetections, fanSpeed, rainLevel, windDir]);
+    snapshotRef.current = {
+      windSpeed, temperature, humidity, pressure, aiConfidence, currentForce, aiDetections,
+      fanSpeed, windDir, rainSensor,
+    };
+  }, [windSpeed, temperature, humidity, pressure, aiConfidence, currentForce, aiDetections, fanSpeed, windDir, rainSensor]);
 
   const startTest = useCallback(() => {
     const start = new Date();
@@ -238,14 +232,10 @@ export function useSimulation() {
     setElapsed(0);
     setTestId(id);
     setFanSpeed(60);
-    setRainLevel('Heavy');
-    setWindDir(45);
-    tickRef.current = 0;
+    forceTickRef.current = 0;
     setForceHist([]);
     addLog(`Test started: ${scenario} (ID: ${id})`, 'ok');
     addLog(`Fan speed initialized to 60%`, 'info');
-    addLog(`Rain intensity initialized to Heavy (70%)`, 'info');
-    addLog(`Wind direction initialized to NE (45°)`, 'info');
     if (house.modelName) addLog(`House model: ${house.modelName}`, 'info');
   }, [scenario, addLog, house.modelName]);
 
@@ -274,7 +264,7 @@ export function useSimulation() {
         roof_material: house.roofMaterial || null,
         floor_material: house.floorMaterial || null,
         other_materials: house.otherMaterials || null,
-        wind_speed: snap.windSpeed,
+        wind_speed: snap.windSpeed * 3.6,
         temperature: snap.temperature,
         humidity: snap.humidity,
         pressure: snap.pressure,
@@ -285,7 +275,12 @@ export function useSimulation() {
         ai_cracks: snap.aiDetections.cracks,
         ai_overall: snap.aiDetections.overall,
         fan_speed: snap.fanSpeed,
-        rain_level: snap.rainLevel,
+        rain_level: snap.rainSensor.connected ? String(snap.rainSensor.rawRainLevel) : 'Unknown',
+        rain_level_raw: snap.rainSensor.connected ? String(snap.rainSensor.rawRainLevel) : null,
+        rain_state: snap.rainSensor.connected ? snap.rainSensor.rainState : null,
+        rain_24h: snap.rainSensor.connected ? snap.rainSensor.rain24h : null,
+        rain_battery: snap.rainSensor.connected ? snap.rainSensor.batteryPercentage : null,
+        rain_sensor_connected: snap.rainSensor.connected,
         wind_direction: snap.windDir,
         camera_status: 'disconnected',
 camera_stream_url: null,
@@ -306,23 +301,9 @@ camera_stream_url: null,
     setFanSpeed(Math.max(0, Math.min(100, v)));
   }, []);
 
-  const setRainLogged = useCallback((lvl: RainLevel) => {
-    setRainLevel(lvl);
-  }, []);
-
   const applyControls = useCallback(() => {
-    addLog(`Controls applied — Fan ${fanSpeed}%, Rain ${rainLevel} (${RAIN_VALUES[rainLevel]}%)`, 'ok');
-  }, [addLog, fanSpeed, rainLevel]);
-
-  const setWindDirLogged = useCallback((deg: number) => {
-    setWindDir(((deg % 360) + 360) % 360);
-  }, []);
-
-  const logWindDirection = useCallback((deg: number) => {
-    const cardinals = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-    const idx = Math.round(deg / 45) % 8;
-    addLog(`Wind direction set to ${cardinals[idx]} (${Math.round(deg)}°)`, 'info');
-  }, [addLog]);
+    addLog(`Controls applied — Fan ${fanSpeed}%`, 'ok');
+  }, [addLog, fanSpeed]);
 
   return {
     now,
@@ -339,14 +320,11 @@ camera_stream_url: null,
     fanSpeed,
     setFanSpeed: setFanSpeedLogged,
     adjustFan,
-    rainLevel,
-    setRainLevel: setRainLogged,
-    rainValue: RAIN_VALUES[rainLevel],
     windDir,
-    setWindDir: setWindDirLogged,
-    logWindDirection,
     // Telemetry
     windSpeed,
+    windHist: windSensor.history,
+    windSensorConnected: windSensor.connected,
     temperature,
     humidity,
     pressure,
@@ -354,6 +332,7 @@ camera_stream_url: null,
     aiDetections,
     currentForce,
     forceHist,
+    loadCellConnected: loadCell.connected,
     // Logs
     logs,
     addLog,

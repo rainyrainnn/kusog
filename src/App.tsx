@@ -15,6 +15,9 @@ import { ToastProvider } from '@/components/Toast';
 import { SystemStatus } from '@/components/panels/SystemStatus';
 import { AuthScreen } from '@/components/AuthScreen';
 import { supabase } from '@/lib/supabase';
+import { useRainSensor } from '@/lib/rainSensor';
+import { useLoadCell } from '@/lib/loadCell';
+import { useWindSensor } from '@/lib/windSensor';
 
 export type OperatorProfile = {
   fullName: string;
@@ -24,7 +27,10 @@ export type OperatorProfile = {
 };
 
 function Dashboard({ profile, onSignOut }: { profile: OperatorProfile; onSignOut: () => void }) {
-  const sim = useSimulation();
+  const { data: rainSensor, error: rainSensorError, loading: rainSensorLoading } = useRainSensor();
+  const loadCell = useLoadCell();
+  const windSensor = useWindSensor();
+  const sim = useSimulation({ rainSensor, loadCell, windSensor });
   const [route, setRoute] = useState<RouteId>('dashboard');
 
   return (
@@ -36,10 +42,10 @@ function Dashboard({ profile, onSignOut }: { profile: OperatorProfile; onSignOut
           <div className="p-4">
             {route === 'dashboard' && <div className="mb-3"><SystemStatus /></div>}
             <div key={route} className="animate-[fadeIn_0.25s_ease-out]">
-              {route === 'dashboard'    && <DashboardView sim={sim} onNavigate={setRoute} />}
+              {route === 'dashboard'    && <DashboardView sim={sim} rainSensor={rainSensor} sensorError={rainSensorError} sensorLoading={rainSensorLoading} onNavigate={setRoute} />}
               {route === 'camera'       && <CameraView sim={sim} />}
               {route === 'environment'  && <EnvironmentView sim={sim} />}
-              {route === 'controls'     && <ControlsView sim={sim} />}
+              {route === 'controls'     && <ControlsView sim={sim} rainSensor={rainSensor} sensorError={rainSensorError} sensorLoading={rainSensorLoading} />}
               {route === 'graphs'       && <GraphsView sim={sim} />}
               {route === 'ai'           && <AiView sim={sim} />}
               {route === 'log'          && <LogView sim={sim} />}
@@ -48,7 +54,7 @@ function Dashboard({ profile, onSignOut }: { profile: OperatorProfile; onSignOut
             </div>
             <footer className="mt-4 flex items-center justify-between px-2 py-2 text-[10px] text-slate-600">
               <span>KUSOG Smart Typhoon Simulation Chamber · Control Center v2.4</span>
-              <span className="font-mono">© 2026 · Thesis Project · Sensors pending hardware integration</span>
+              <span className="font-mono">© 2026 · Thesis Project · Rain sensor {rainSensorLoading ? 'loading' : rainSensorError ? 'error' : rainSensor.connected ? 'online' : rainSensor.offline ? 'offline' : 'waiting'}</span>
             </footer>
           </div>
         </main>

@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useState } from 'react';
 import { Camera, Maximize2, RefreshCw, WifiOff } from 'lucide-react';
 import { Panel, StatusDot } from '../Panel';
 import type { Simulation } from '@/hooks/useSimulation';
@@ -7,13 +7,15 @@ import { useSystemStatus } from '@/hooks/useSystemStatus';
 
 export function CameraFeed({ sim: _sim, onExpand }: { sim: Simulation; onExpand: () => void }) {
   const system = useSystemStatus();
-  const cameraRef = useRef<HTMLImageElement>(null);
-  const online = system.webcam === 'online' && !!CAMERA_STREAM_URL;
+  const [streamStatus, setStreamStatus] = useState<'connecting' | 'online' | 'offline'>('connecting');
+  const [streamAttempt, setStreamAttempt] = useState(0);
+  const online = streamStatus === 'online';
   const resolution = system.edgeHealth?.resolution || '—';
   const fps = system.edgeHealth?.fps ?? null;
 
   const refreshStream = () => {
-    if (cameraRef.current) cameraRef.current.src = CAMERA_STREAM_URL;
+    setStreamStatus('connecting');
+    setStreamAttempt((attempt) => attempt + 1);
   };
 
   return (
@@ -24,7 +26,7 @@ export function CameraFeed({ sim: _sim, onExpand }: { sim: Simulation; onExpand:
         <span className="flex items-center gap-1.5">
           <StatusDot color={online ? 'ok' : 'warn'} pulse={online} />
           <span className={`text-[10px] font-bold tracking-wider ${online ? 'text-ok-400' : 'text-warn-400'}`}>
-            {online ? 'ONLINE' : 'WAITING'}
+            {online ? 'ONLINE' : streamStatus === 'offline' ? 'OFFLINE' : 'CONNECTING'}
           </span>
         </span>
       }
@@ -32,12 +34,14 @@ export function CameraFeed({ sim: _sim, onExpand }: { sim: Simulation; onExpand:
       bodyClassName="p-0"
     >
       <div className="relative h-full min-h-[260px] overflow-hidden rounded-b-xl bg-base-950">
-        {online ? (
+        {streamStatus !== 'offline' ? (
           <img
-            ref={cameraRef}
+            key={streamAttempt}
             src={CAMERA_STREAM_URL}
             alt="Live Raspberry Pi chamber camera"
             className="h-full w-full object-contain"
+            onLoad={() => setStreamStatus('online')}
+            onError={() => setStreamStatus('offline')}
           />
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-base-950">
@@ -45,7 +49,7 @@ export function CameraFeed({ sim: _sim, onExpand }: { sim: Simulation; onExpand:
             <div className="text-center">
               <p className="text-sm font-semibold text-slate-300">Raspberry Pi Camera Waiting</p>
               <p className="mt-1 max-w-sm text-xs text-slate-500">
-                The dashboard no longer opens the laptop webcam. Connect the webcam to the Raspberry Pi and expose its camera stream to KUSOG.
+                The Raspberry Pi video stream is unreachable. Check that the Pi is online and serving the MJPEG endpoint, then reconnect.
               </p>
             </div>
           </div>

@@ -3,9 +3,9 @@ import { Panel } from '../Panel';
 import { windLabel, type Simulation } from '@/hooks/useSimulation';
 
 export function WindGauge({ sim }: { sim: Simulation }) {
-  const max = 120;
+  const max = 60;
   const pct = Math.min(1, sim.windSpeed / max);
-  const label = windLabel(sim.windSpeed);
+  const label = windLabel(sim.windSpeed * 3.6);
   const angle = -120 + pct * 240;
 
   const r = 70;
@@ -15,8 +15,12 @@ export function WindGauge({ sim }: { sim: Simulation }) {
   const offset = circumference * (1 - pct);
 
   return (
-    <Panel title="Wind Speed" icon={<Wind className="h-4 w-4" />} className="h-full">
+    <Panel title="Wind Speed" icon={<Wind className="h-4 w-4" />} right={<span className={`text-[10px] font-bold ${sim.windSensorConnected ? 'text-ok-400' : 'text-danger-400'}`}>{sim.windSensorConnected ? 'LIVE' : 'OFFLINE'}</span>} className="h-full">
       <div className="flex h-full flex-col items-center justify-center">
+        {!sim.windSensorConnected ? (
+          <p className="py-12 text-center text-sm font-semibold text-danger-400">Wind Sensor Offline</p>
+        ) : (
+          <>
         <div className="relative">
           <svg viewBox="0 0 180 120" className="w-44">
             <path
@@ -60,14 +64,14 @@ export function WindGauge({ sim }: { sim: Simulation }) {
             <p className="font-mono text-3xl font-bold text-white">
               {sim.windSpeed.toFixed(1)}
             </p>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">km/h</p>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">m/s</p>
           </div>
         </div>
-        <div className={`mt-2 rounded-full border px-3 py-1 ${sim.isTestRunning ? 'border-accent-500/30 bg-accent-500/10' : 'border-base-600/70 bg-base-700/40'}`}>
-          <span className={`text-xs font-semibold tracking-wide ${sim.isTestRunning ? 'text-accent-400' : 'text-slate-500'}`}>
-            {sim.isTestRunning ? label : 'Standby'}
-          </span>
+        <div className="mt-2 rounded-full border border-base-600/70 bg-base-700/40 px-3 py-1">
+          <span className="text-xs font-semibold tracking-wide text-slate-300">{label}</span>
         </div>
+          </>
+        )}
       </div>
     </Panel>
   );

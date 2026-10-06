@@ -39,7 +39,7 @@
   - ai_cracks (text, default 'NONE')
   - ai_overall (text, default 'STANDBY')
   - fan_speed (integer, default 0)
-  - rain_level (text, default 'Light')
+  - rain_level (text, actual Tuya rain sensor value)
   - wind_direction (integer, default 0)
   - camera_status (text, default 'disconnected')
   - camera_stream_url (text, nullable)
@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS test_records (
   ai_cracks text DEFAULT 'NONE',
   ai_overall text DEFAULT 'STANDBY',
   fan_speed integer DEFAULT 0,
-  rain_level text DEFAULT 'Light',
+  rain_level text,
   wind_direction integer DEFAULT 0,
   camera_status text DEFAULT 'disconnected',
   camera_stream_url text,

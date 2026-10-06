@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Compass, SlidersHorizontal, X, Check } from 'lucide-react';
+import { Compass } from 'lucide-react';
 import { Panel } from '../Panel';
 import type { Simulation } from '@/hooks/useSimulation';
 
@@ -21,112 +20,32 @@ function degToCardinal(deg: number) {
 }
 
 export function WindDirection({ sim }: { sim: Simulation }) {
-  const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState(sim.windDir);
   const cardinal = degToCardinal(sim.windDir);
-
-  const apply = () => {
-    sim.setWindDir(draft);
-    sim.logWindDirection(draft);
-    setOpen(false);
-  };
 
   return (
     <Panel
       title="Wind Direction"
       icon={<Compass className="h-4 w-4" />}
-      right={<span className="font-mono text-[10px] text-slate-500">SERVO · 0-359°</span>}
+      right={<span className={`text-[10px] font-bold ${sim.windSensorConnected ? 'text-ok-400' : 'text-danger-400'}`}>{sim.windSensorConnected ? 'LIVE' : 'OFFLINE'}</span>}
       className="h-full"
     >
       <div className="flex h-full flex-col items-center justify-center gap-3">
-        <CompassRose deg={sim.windDir} />
-        <div className="text-center">
-          <p className="font-mono text-2xl font-bold text-white">
-            {cardinal.label} <span className="text-accent-400">{sim.windDir}°</span>
-          </p>
-          <p className="text-xs text-slate-400">{cardinal.full}</p>
-        </div>
-
-        <button
-          onClick={() => {
-            setDraft(sim.windDir);
-            setOpen(true);
-          }}
-          className="flex items-center gap-2 rounded-lg border border-base-600/70 bg-base-700/60 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:border-accent-500/50 hover:text-accent-400"
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5" /> Adjust Direction
-        </button>
-      </div>
-
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            className="w-full max-w-sm rounded-xl border border-base-600/70 bg-base-800 p-5 shadow-panel"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-sm font-semibold uppercase tracking-widest text-accent-400">
-                Adjust Wind Direction
-              </h3>
-              <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="mb-4 flex justify-center">
-              <CompassRose deg={draft} small />
-            </div>
-
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs text-slate-400">Degrees</span>
-              <span className="font-mono text-lg font-bold text-accent-400">
-                {degToCardinal(draft).label} {draft}°
-              </span>
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={359}
-              value={draft}
-              onChange={(e) => setDraft(+e.target.value)}
-              className="slider mb-4"
-              style={{ ['--val' as any]: `${(draft / 359) * 100}%` }}
-            />
-
-            <div className="mb-4 grid grid-cols-8 gap-1">
-              {DIRS.map((d) => (
-                <button
-                  key={d.label}
-                  onClick={() => setDraft(d.deg)}
-                  className={`rounded py-1 text-[10px] font-semibold transition ${
-                    draft === d.deg
-                      ? 'bg-accent-500/20 text-accent-400'
-                      : 'text-slate-400 hover:bg-base-700/60'
-                  }`}
-                >
-                  {d.label}
-                </button>
-              ))}
-            </div>
-
-            <button
-              onClick={apply}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-ok-500/15 py-2.5 text-sm font-bold uppercase tracking-widest text-ok-400 border border-ok-500/40 transition hover:bg-ok-500 hover:text-white"
-            >
-              <Check className="h-4 w-4" /> Apply Direction
-            </button>
+        {sim.windSensorConnected ? <>
+          <CompassRose deg={sim.windDir} />
+          <div className="text-center">
+            <p className="font-mono text-2xl font-bold text-white">
+              {cardinal.label} <span className="text-accent-400">{sim.windDir.toFixed(1)}°</span>
+            </p>
+            <p className="text-xs text-slate-400">{cardinal.full}</p>
           </div>
-        </div>
-      )}
+        </> : <p className="py-12 text-center text-sm font-semibold text-danger-400">Wind Sensor Offline</p>}
+      </div>
     </Panel>
   );
 }
 
 function CompassRose({ deg, small }: { deg: number; small?: boolean }) {
-  const size = small ? 120 : 150;
+  const size = 150;
   const c = size / 2;
   const r = c - 12;
   return (
