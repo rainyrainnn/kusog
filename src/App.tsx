@@ -12,7 +12,6 @@ import { LogView } from '@/components/views/LogView';
 import { ReportsView } from '@/components/views/ReportsView';
 import { SettingsView } from '@/components/views/SettingsView';
 import { ToastProvider } from '@/components/Toast';
-import { SystemStatus } from '@/components/panels/SystemStatus';
 import { AuthScreen } from '@/components/AuthScreen';
 import { supabase } from '@/lib/supabase';
 import { useRainSensor } from '@/lib/rainSensor';
@@ -30,29 +29,28 @@ function Dashboard({ profile, onSignOut }: { profile: OperatorProfile; onSignOut
   const { data: rainSensor, error: rainSensorError, loading: rainSensorLoading } = useRainSensor();
   const loadCell = useLoadCell();
   const windSensor = useWindSensor();
-  const sim = useSimulation({ rainSensor, loadCell, windSensor });
+  const sim = useSimulation({ loadCell, windSensor });
   const [route, setRoute] = useState<RouteId>('dashboard');
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-base-900 text-slate-200">
-      <Header sim={sim} profile={profile} onSignOut={onSignOut} />
-      <div className="flex min-h-0 flex-1">
+    <div className="dashboard-shell flex min-h-screen flex-col text-slate-100 md:h-screen md:overflow-hidden">
+      <Header sim={sim} profile={profile} onSignOut={onSignOut} route={route} />
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <Sidebar sim={sim} route={route} onNavigate={setRoute} />
-        <main className="min-h-0 flex-1 overflow-y-auto bg-grid">
-          <div className="p-4">
-            {route === 'dashboard' && <div className="mb-3"><SystemStatus /></div>}
+        <main className="dashboard-main min-h-0 min-w-0 flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-[1600px] p-3 sm:p-4 xl:p-5">
             <div key={route} className="animate-[fadeIn_0.25s_ease-out]">
               {route === 'dashboard'    && <DashboardView sim={sim} rainSensor={rainSensor} sensorError={rainSensorError} sensorLoading={rainSensorLoading} onNavigate={setRoute} />}
-              {route === 'camera'       && <CameraView sim={sim} />}
-              {route === 'environment'  && <EnvironmentView sim={sim} />}
+              {route === 'camera'       && <CameraView />}
+              {route === 'environment'  && <EnvironmentView />}
               {route === 'controls'     && <ControlsView sim={sim} rainSensor={rainSensor} sensorError={rainSensorError} sensorLoading={rainSensorLoading} />}
               {route === 'graphs'       && <GraphsView sim={sim} />}
               {route === 'ai'           && <AiView sim={sim} />}
               {route === 'log'          && <LogView sim={sim} />}
-              {route === 'reports'      && <ReportsView sim={sim} />}
+              {route === 'reports'      && <ReportsView />}
               {route === 'settings'     && <SettingsView sim={sim} />}
             </div>
-            <footer className="mt-4 flex items-center justify-between px-2 py-2 text-[10px] text-slate-600">
+            <footer className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-sky-200/15 px-2 py-3 text-[10px] text-slate-400">
               <span>KUSOG Smart Typhoon Simulation Chamber · Control Center v2.4</span>
               <span className="font-mono">© 2026 · Thesis Project · Rain sensor {rainSensorLoading ? 'loading' : rainSensorError ? 'error' : rainSensor.connected ? 'online' : rainSensor.offline ? 'offline' : 'waiting'}</span>
             </footer>

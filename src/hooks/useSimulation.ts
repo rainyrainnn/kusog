@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { saveTestRecord } from '@/lib/testRecords';
-import type { RainSensorData } from '@/lib/rainSensor';
+import { finalizeTestRecord, getRunningTestRecord, startTestRecord } from '@/lib/testRecords';
+import type { FinalTestPayload, StartTestPayload, TestRecord } from '@/lib/testRecords';
 import type { LoadCellData } from '@/lib/loadCell';
 import type { WindSensorData } from '@/lib/windSensor';
+import { hasDamageClasses, isDamageClassName, type EdgeDetection } from '@/lib/edgeService';
+import { updateRunningTestAssessment } from '@/lib/testRecords';
 
 
 export type LogEntry = {
@@ -61,17 +63,12 @@ export function fmtDate(d: Date) {
   return `${months[d.getMonth()]} ${pad(d.getDate())}, ${d.getFullYear()}`;
 }
 
-export function fmtElapsed(secs: number) {
+export function fmtElapsed(secs: number | null | undefined) {
+  if (secs === null || secs === undefined || !Number.isFinite(secs)) return '—';
   const h = Math.floor(secs / 3600);
   const m = Math.floor((secs % 3600) / 60);
   const s = secs % 60;
   return `${pad(h)}:${pad(m)}:${pad(s)}`;
-}
-
-let testCounter = 1;
-function genTestId(d: Date) {
-  const seq = pad(testCounter++);
-  return `KUSOG-${d.getFullYear()}-${pad(d.getMonth() + 1)}${pad(d.getDate())}-${seq}`;
 }
 
 const HISTORY_LEN = 40;
@@ -99,7 +96,7 @@ export const EMPTY_HOUSE: HouseSelection = {
   otherMaterials: '',
 };
 
-export function useSimulation({ rainSensor, loadCell, windSensor }: { rainSensor: RainSensorData; loadCell: LoadCellData; windSensor: WindSensorData }) {
+export function useSimulation({ loadCell, windSensor }: { loadCell: LoadCellData; windSensor: WindSensorData }) {
   // Clock
   const [now, setNow] = useState(() => new Date());
 
@@ -113,25 +110,22 @@ export function useSimulation({ rainSensor, loadCell, windSensor }: { rainSensor
   // House model / material selection (set before test start)
   const [house, setHouse] = useState<HouseSelection>(EMPTY_HOUSE);
 
-  // Controls
-  const [fanSpeed, setFanSpeed] = useState(0);
-
   // Telemetry
   const windSpeed = windSensor.connected ? windSensor.windSpeedMps ?? 0 : 0;
   const windDir = windSensor.connected ? windSensor.windDirectionDeg ?? 0 : 0;
-  const [temperature, setTemperature] = useState(26.5);
-  const [humidity, setHumidity] = useState(55);
-  const [pressure, setPressure] = useState(1013);
   const [aiConfidence, setAiConfidence] = useState(0);
   const currentForce = loadCell.connected ? loadCell.upliftForceN ?? 0 : 0;
 
   // AI detections
   const [aiDetections, setAiDetections] = useState({
-    roof: 'NORMAL',
-    movement: 'NORMAL',
-    cracks: 'NONE',
-    overall: 'STANDBY',
+    roof: '—',
+    movement: '—',
+    cracks: '—',
+    overall: 'NOT ASSESSED',
   });
+  const damageDetectedRef = useRef(false);
+  const damageClassesRef = useRef<string[]>([]);
+  const hasYoloAssessmentRef = useRef(false);
 
   // Graph data
   const [forceHist, setForceHist] = useState<TelemetryPoint[]>([]);
@@ -162,24 +156,12 @@ export function useSimulation({ rainSensor, loadCell, windSensor }: { rainSensor
       if (isTestRunning) {
         setElapsed((e) => e + 1);
 
-        setTemperature((t) => +(t + (Math.random() - 0.5) * 0.06).toFixed(1));
-        setHumidity((h) => {
-          const target = 55;
-          return Math.max(0, Math.min(100, +(h + (target - h) * 0.08 + (Math.random() - 0.5) * 0.4).toFixed(1)));
-        });
-        setPressure((p) => {
-          const target = 1013 - (fanSpeed / 100) * 18;
-          return Math.round(p + (target - p) * 0.1 + (Math.random() - 0.5) * 0.5);
-        });
-
-        setAiConfidence((c) => Math.max(85, Math.min(99, c + Math.round((Math.random() - 0.5) * 1.2))));
-
       } else {
-        setAiConfidence(0);
+        if (!isTestRunning) setAiConfidence(0);
       }
     }, 1000);
     return () => clearInterval(t);
-  }, [isTestRunning, fanSpeed]);
+  }, [isTestRunning]);
 
   useEffect(() => {
     if (!loadCell.connected || !loadCell.recordedAt) {
@@ -195,119 +177,267 @@ export function useSimulation({ rainSensor, loadCell, windSensor }: { rainSensor
     ]);
   }, [loadCell.connected, loadCell.recordedAt, loadCell.upliftForceN]);
 
-  // AI detections react to telemetry
-  useEffect(() => {
-    if (!isTestRunning) {
-      setAiDetections({ roof: 'NORMAL', movement: 'NORMAL', cracks: 'NONE', overall: 'STANDBY' });
-      return;
-    }
-    const stress = windSpeed / 60;
-    setAiDetections({
-      roof:     stress > 0.85 ? 'DETECTED' : 'NORMAL',
-      movement: stress > 0.7  ? 'WARNING'  : 'NORMAL',
-      cracks:   stress > 0.9  ? 'DETECTED' : 'NONE',
-      overall:  stress > 0.85 ? 'CRITICAL' : 'SAFE',
-    });
-  }, [isTestRunning, windSpeed]);
+  const [isStarting, setIsStarting] = useState(false);
+  const [hasPendingStart, setHasPendingStart] = useState(false);
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const [hasPendingFinalization, setHasPendingFinalization] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(true);
+  const [persistenceError, setPersistenceError] = useState<string | null>(null);
+  const [testRecord, setTestRecord] = useState<TestRecord | null>(null);
+  const lifecycleLockRef = useRef(false);
+  const pendingStartRef = useRef<StartTestPayload | null>(null);
+  const pendingFinalizationRef = useRef<{ testId: string; payload: FinalTestPayload } | null>(null);
 
-  // Snapshot of key values for saving — captured via refs so stopTest closure is stable
+  // Snapshot current hardware readings so stop always saves the latest available values.
   const snapshotRef = useRef({
-    windSpeed: 0, temperature: 26.5, humidity: 55, pressure: 1013,
-    aiConfidence: 0, currentForce: 0, aiDetections: { roof: 'NORMAL', movement: 'NORMAL', cracks: 'NONE', overall: 'STANDBY' },
-    fanSpeed: 0, windDir: 45, rainSensor,
+    windSpeed: 0, aiConfidence: 0, currentForce: 0,
+    aiDetections: { roof: '—', movement: '—', cracks: '—', overall: 'NOT ASSESSED' },
+    windDir: 0,
   });
 
   useEffect(() => {
     snapshotRef.current = {
-      windSpeed, temperature, humidity, pressure, aiConfidence, currentForce, aiDetections,
-      fanSpeed, windDir, rainSensor,
+      windSpeed, aiConfidence, currentForce, aiDetections, windDir,
     };
-  }, [windSpeed, temperature, humidity, pressure, aiConfidence, currentForce, aiDetections, fanSpeed, windDir, rainSensor]);
+  }, [windSpeed, aiConfidence, currentForce, aiDetections, windDir]);
 
-  const startTest = useCallback(() => {
-    const start = new Date();
-    const id = genTestId(start);
-    setIsTestRunning(true);
-    setStartTime(start);
-    setElapsed(0);
-    setTestId(id);
-    setFanSpeed(60);
-    forceTickRef.current = 0;
-    setForceHist([]);
-    addLog(`Test started: ${scenario} (ID: ${id})`, 'ok');
-    addLog(`Fan speed initialized to 60%`, 'info');
-    if (house.modelName) addLog(`House model: ${house.modelName}`, 'info');
-  }, [scenario, addLog, house.modelName]);
-
-  const stopTest = useCallback(() => {
-    setIsTestRunning(false);
-    const endTime = new Date();
-    addLog('Test stopped by operator — Emergency halt', 'error');
-    addLog(`Test halted at ${fmtElapsed(elapsed)}`, 'warn');
-
-    // Capture stable snapshot values
-    const snap = snapshotRef.current;
-
-    // Save to Supabase (fire-and-forget, errors logged but do not block UI)
-    setLogs((currentLogs) => {
-      const payload = {
-        test_id: testId || `KUSOG-${Date.now()}`,
-        scenario,
-        start_time: startTime?.toISOString() ?? null,
-        end_time: endTime.toISOString(),
-        duration_seconds: elapsed,
-        status: 'COMPLETED',
-        house_model_id: null as string | null,
-        house_model_name: house.modelName || null,
-        house_model_image_url: house.modelImageUrl || null,
-        wall_material: house.wallMaterial || null,
-        roof_material: house.roofMaterial || null,
-        floor_material: house.floorMaterial || null,
-        other_materials: house.otherMaterials || null,
-        wind_speed: snap.windSpeed * 3.6,
-        temperature: snap.temperature,
-        humidity: snap.humidity,
-        pressure: snap.pressure,
-        current_force: snap.currentForce,
-        ai_confidence: snap.aiConfidence,
-        ai_roof: snap.aiDetections.roof,
-        ai_movement: snap.aiDetections.movement,
-        ai_cracks: snap.aiDetections.cracks,
-        ai_overall: snap.aiDetections.overall,
-        fan_speed: snap.fanSpeed,
-        rain_level: snap.rainSensor.connected ? String(snap.rainSensor.rawRainLevel) : 'Unknown',
-        rain_level_raw: snap.rainSensor.connected ? String(snap.rainSensor.rawRainLevel) : null,
-        rain_state: snap.rainSensor.connected ? snap.rainSensor.rainState : null,
-        rain_24h: snap.rainSensor.connected ? snap.rainSensor.rain24h : null,
-        rain_battery: snap.rainSensor.connected ? snap.rainSensor.batteryPercentage : null,
-        rain_sensor_connected: snap.rainSensor.connected,
-        wind_direction: snap.windDir,
-        camera_status: 'disconnected',
-camera_stream_url: null,
-        log_entries: currentLogs.slice(-50),
-      };
-      saveTestRecord(payload).then(({ error }) => {
-        if (error) console.warn('[KUSOG] Failed to save test record:', error.message);
+  useEffect(() => {
+    let active = true;
+    getRunningTestRecord().then((record) => {
+      if (!active || !record) return;
+      const restoredStart = record.start_time ? new Date(record.start_time) : new Date();
+      setTestRecord(record);
+      setTestId(record.test_id);
+      setScenario(record.scenario);
+      setStartTime(restoredStart);
+      setElapsed(Math.max(0, Math.floor((Date.now() - restoredStart.getTime()) / 1000)));
+      damageDetectedRef.current = record.status === 'FAILED' || record.ai_overall === 'DAMAGE DETECTED';
+      damageClassesRef.current = record.ai_cracks ? record.ai_cracks.split(', ') : [];
+      hasYoloAssessmentRef.current = record.ai_overall === 'PASSED' || damageDetectedRef.current;
+      if (hasYoloAssessmentRef.current) {
+        setAiDetections({
+          roof: '—',
+          movement: '—',
+          cracks: record.ai_cracks ?? (damageDetectedRef.current ? 'DAMAGE DETECTED' : 'NONE'),
+          overall: damageDetectedRef.current ? 'DAMAGE DETECTED' : 'PASSED',
+        });
+        setAiConfidence(record.ai_confidence ?? 0);
+      }
+      setHouse({
+        modelId: record.house_model_id ?? '',
+        modelName: record.house_model_name ?? '',
+        modelImageUrl: record.house_model_image_url ?? '',
+        wallMaterial: record.wall_material ?? '',
+        roofMaterial: record.roof_material ?? '',
+        floorMaterial: record.floor_material ?? '',
+        otherMaterials: record.other_materials ?? '',
       });
-      return currentLogs;
+      setIsTestRunning(true);
+      addLog(`Resumed active test ${record.test_id} after page reload`, 'warn');
+    }).catch((error: unknown) => {
+      if (active) setPersistenceError(error instanceof Error ? error.message : 'Unable to check for an unfinished simulation.');
+    }).finally(() => {
+      if (active) setIsRestoring(false);
     });
-  }, [addLog, elapsed, testId, scenario, startTime, house]);
+    return () => { active = false; };
+  }, [addLog]);
 
-  const adjustFan = useCallback((delta: number) => {
-    setFanSpeed((v) => Math.max(0, Math.min(100, v + delta)));
-  }, []);
+  const recordYoloAssessment = useCallback((detections: EdgeDetection[], available: boolean, modelClasses: string[]) => {
+    if (!available || !hasDamageClasses(modelClasses)) return;
+    hasYoloAssessmentRef.current = true;
+    const damageClasses = [...new Set(
+      detections
+        .map((detection) => detection.className.trim())
+        .filter(isDamageClassName),
+    )];
+    const observedDamageClasses = [...new Set([...damageClassesRef.current, ...damageClasses])];
+    const confidence = detections.length
+      ? Math.round(Math.max(...detections.map((detection) => detection.confidence)) * 100)
+      : 0;
+    const hasDamage = damageDetectedRef.current || damageClasses.length > 0;
+    setAiConfidence(confidence);
+    setAiDetections({
+      roof: '—',
+      movement: '—',
+      cracks: hasDamage ? observedDamageClasses.join(', ') : 'NONE',
+      overall: hasDamage ? 'DAMAGE DETECTED' : 'PASSED',
+    });
 
-  const setFanSpeedLogged = useCallback((v: number) => {
-    setFanSpeed(Math.max(0, Math.min(100, v)));
-  }, []);
+    if (!isTestRunning || !testId || damageClasses.length === 0) return;
+    const newlyDetected = damageClasses.filter((className) => !damageClassesRef.current.includes(className));
+    if (newlyDetected.length === 0 && damageDetectedRef.current) return;
+    damageDetectedRef.current = true;
+    damageClassesRef.current = observedDamageClasses;
+    addLog(`YOLO damage detected: ${damageClasses.join(', ')}. This test will be marked Failed.`, 'error');
+    void updateRunningTestAssessment(testId, {
+      ai_confidence: confidence,
+      ai_cracks: damageClassesRef.current.join(', '),
+      ai_overall: 'DAMAGE DETECTED',
+    }).catch((error: unknown) => {
+      addLog(`Unable to save the YOLO damage assessment: ${error instanceof Error ? error.message : 'Unknown database error.'}`, 'error');
+    });
+  }, [addLog, isTestRunning, testId]);
 
-  const applyControls = useCallback(() => {
-    addLog(`Controls applied — Fan ${fanSpeed}%`, 'ok');
-  }, [addLog, fanSpeed]);
+  const startTest = useCallback(async () => {
+    if (lifecycleLockRef.current || isTestRunning || isRestoring || pendingFinalizationRef.current) return;
+    lifecycleLockRef.current = true;
+    setIsStarting(true);
+    setPersistenceError(null);
+    const start = new Date();
+    try {
+      if (!pendingStartRef.current) {
+        const snap = snapshotRef.current;
+        pendingStartRef.current = {
+          id: crypto.randomUUID(),
+          scenario,
+          start_time: start.toISOString(),
+          end_time: null,
+          duration_seconds: 0,
+          status: 'RUNNING',
+          house_model_id: house.modelId || null,
+          house_model_name: house.modelName || null,
+          house_model_image_url: house.modelImageUrl || null,
+          wall_material: house.wallMaterial || null,
+          roof_material: house.roofMaterial || null,
+          floor_material: house.floorMaterial || null,
+          other_materials: house.otherMaterials || null,
+          wind_speed: windSensor.connected ? snap.windSpeed * 3.6 : null,
+          wind_direction: windSensor.connected ? snap.windDir : null,
+          current_force: loadCell.connected ? snap.currentForce : null,
+          temperature: null,
+          humidity: null,
+          pressure: null,
+          ai_confidence: null,
+          ai_roof: null,
+          ai_movement: null,
+          ai_cracks: null,
+          ai_overall: null,
+          fan_speed: 0,
+          camera_status: 'disconnected',
+          camera_stream_url: null,
+          log_entries: [],
+        };
+      }
+      const record = await startTestRecord(pendingStartRef.current);
+      pendingStartRef.current = null;
+      setHasPendingStart(false);
+      setTestRecord(record);
+      setHasPendingFinalization(false);
+      damageDetectedRef.current = false;
+      damageClassesRef.current = [];
+      hasYoloAssessmentRef.current = false;
+      setAiConfidence(0);
+      setAiDetections({ roof: '—', movement: '—', cracks: '—', overall: 'NOT ASSESSED' });
+      setIsTestRunning(true);
+      const actualStart = record.start_time ? new Date(record.start_time) : start;
+      setStartTime(actualStart);
+      setElapsed(0);
+      setTestId(record.test_id);
+      forceTickRef.current = 0;
+      setForceHist([]);
+      addLog(`Simulation started: ${record.scenario} (ID: ${record.test_id})`, 'ok');
+      if (house.modelName) addLog(`House model: ${house.modelName}`, 'info');
+    } catch (error) {
+      setHasPendingStart(true);
+      setPersistenceError(error instanceof Error ? error.message : 'Unable to create the simulation record.');
+    } finally {
+      lifecycleLockRef.current = false;
+      setIsStarting(false);
+    }
+  }, [addLog, house, isRestoring, isTestRunning, loadCell.connected, scenario, windSensor.connected]);
+
+  const finalizePendingTest = useCallback(async () => {
+    const pending = pendingFinalizationRef.current;
+    if (!pending || lifecycleLockRef.current) return;
+    lifecycleLockRef.current = true;
+    setIsFinalizing(true);
+    setPersistenceError(null);
+    try {
+      const record = await finalizeTestRecord(pending.testId, pending.payload);
+      setTestRecord(record);
+      pendingFinalizationRef.current = null;
+      setHasPendingFinalization(false);
+      addLog(
+        `Simulation finalized and saved: ${pending.testId} (${record.status === 'FAILED' ? 'FAILED' : record.ai_overall === 'PASSED' ? 'PASSED' : 'NOT ASSESSED'})`,
+        record.status === 'FAILED' ? 'error' : 'ok',
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to save the completed simulation.';
+      setPersistenceError(message);
+      addLog(`Simulation save failed for ${pending.testId}: ${message}`, 'error');
+    } finally {
+      lifecycleLockRef.current = false;
+      setIsFinalizing(false);
+    }
+  }, [addLog]);
+
+  const stopTest = useCallback(async () => {
+    if (!isTestRunning || lifecycleLockRef.current || !testId || !startTime) return;
+    lifecycleLockRef.current = true;
+    setIsTestRunning(false);
+    const endedAt = new Date();
+    const durationSeconds = Math.max(0, Math.floor((endedAt.getTime() - startTime.getTime()) / 1000));
+    setElapsed(durationSeconds);
+    addLog('Simulation stopped by operator.', 'warn');
+    const snap = snapshotRef.current;
+    const stoppedLog = { id: logId.current++, time: fmtClock(endedAt), message: 'Simulation stopped by operator.', level: 'warn' as const };
+    const payload: FinalTestPayload = {
+      end_time: endedAt.toISOString(),
+      duration_seconds: durationSeconds,
+      status: damageDetectedRef.current ? 'FAILED' : 'COMPLETED',
+      wind_speed: windSensor.connected ? snap.windSpeed * 3.6 : null,
+      wind_direction: windSensor.connected ? snap.windDir : null,
+      current_force: loadCell.connected ? snap.currentForce : null,
+      temperature: null,
+      humidity: null,
+      pressure: null,
+      ai_confidence: hasYoloAssessmentRef.current ? snap.aiConfidence : null,
+      ai_roof: null,
+      ai_movement: null,
+      ai_cracks: damageDetectedRef.current
+        ? damageClassesRef.current.join(', ')
+        : hasYoloAssessmentRef.current ? 'NONE' : null,
+      ai_overall: damageDetectedRef.current
+        ? 'DAMAGE DETECTED'
+        : hasYoloAssessmentRef.current ? 'PASSED' : null,
+      fan_speed: 0,
+      log_entries: [...logs.slice(-49), stoppedLog],
+    };
+    pendingFinalizationRef.current = { testId, payload };
+    setHasPendingFinalization(true);
+    lifecycleLockRef.current = false;
+    await finalizePendingTest();
+  }, [addLog, isTestRunning, loadCell.connected, logs, startTime, testId, windSensor.connected, finalizePendingTest]);
+
+  const testStatus = isTestRunning
+    ? 'RUNNING'
+    : isFinalizing
+      ? 'FINALIZING'
+      : hasPendingFinalization
+        ? 'SAVE PENDING'
+        : testRecord?.status ?? 'STANDBY';
+  const testResult = testRecord?.status === 'FAILED' || damageDetectedRef.current
+    ? 'FAILED'
+    : testRecord?.status === 'COMPLETED' && testRecord.ai_overall === 'PASSED'
+      ? 'PASSED'
+      : testRecord?.status === 'RUNNING'
+        ? 'IN PROGRESS'
+        : testRecord?.status === 'COMPLETED'
+          ? 'NOT ASSESSED'
+          : '—';
 
   return {
     now,
     isTestRunning,
+    isStarting,
+    hasPendingStart,
+    isFinalizing,
+    hasPendingFinalization,
+    isRestoring,
+    persistenceError,
+    testStatus,
+    testResult,
+    testRecord,
     testId,
     scenario,
     setScenario,
@@ -317,28 +447,24 @@ camera_stream_url: null,
     house,
     setHouse,
     // Controls
-    fanSpeed,
-    setFanSpeed: setFanSpeedLogged,
-    adjustFan,
     windDir,
     // Telemetry
     windSpeed,
     windHist: windSensor.history,
     windSensorConnected: windSensor.connected,
-    temperature,
-    humidity,
-    pressure,
     aiConfidence,
     aiDetections,
+    recordYoloAssessment,
     currentForce,
     forceHist,
     loadCellConnected: loadCell.connected,
     // Logs
     logs,
     addLog,
-    applyControls,
     startTest,
+    retryStart: startTest,
     stopTest,
+    retryFinalize: finalizePendingTest,
   };
 }
 

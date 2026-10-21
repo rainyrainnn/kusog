@@ -12,18 +12,18 @@ type PanelProps = {
 export function Panel({ title, icon, right, children, className = '', bodyClassName = '' }: PanelProps) {
   return (
     <section
-      className={`flex flex-col rounded-xl border border-base-600/70 bg-base-800/80 shadow-panel backdrop-blur-sm ${className}`}
+      className={`flex min-w-0 flex-col rounded-md border border-sky-300/15 bg-base-900/90 shadow-panel backdrop-blur-sm ${className}`}
     >
-      <header className="flex items-center justify-between gap-2 border-b border-base-600/60 px-4 py-2.5">
+      <header className="flex min-w-0 items-center justify-between gap-2 border-b border-sky-300/10 px-3.5 py-2.5">
         <div className="flex items-center gap-2">
-          {icon && <span className="text-accent-400">{icon}</span>}
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">
+          {icon && <span className="text-accent-600">{icon}</span>}
+          <h2 className="truncate text-xs font-semibold uppercase tracking-wider text-slate-200">
             {title}
           </h2>
         </div>
         {right}
       </header>
-      <div className={`flex-1 p-4 ${bodyClassName}`}>{children}</div>
+      <div className={`min-w-0 flex-1 p-3.5 ${bodyClassName}`}>{children}</div>
     </section>
   );
 }

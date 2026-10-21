@@ -6,7 +6,7 @@ import {
 import { StatusDot } from '@/components/Panel';
 import type { OperatorProfile } from '@/App';
 import { KusogLogo } from '@/components/KusogLogo';
-import { supabase } from '@/lib/supabase';
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
 type Props = {
   onLogin: (profile: OperatorProfile) => void;
@@ -174,9 +174,9 @@ export function AuthScreen({ onLogin }: Props) {
             <h1 className="font-mono text-2xl font-extrabold tracking-[0.2em] text-white">KUSOG</h1>
             <p className="text-xs tracking-wide text-slate-400">Smart Typhoon Simulation Chamber · v2.4</p>
           </div>
-          <div className="flex items-center gap-1.5 rounded-full border border-ok-500/30 bg-ok-500/10 px-3 py-1">
-            <StatusDot color="ok" />
-            <span className="text-[10px] font-semibold tracking-wider text-ok-400">SYSTEM ONLINE</span>
+          <div className="flex items-center gap-1.5 rounded-full border border-accent-500/30 bg-accent-500/10 px-3 py-1">
+            <StatusDot color="accent" pulse={false} />
+            <span className="text-[10px] font-semibold tracking-wider text-accent-300">AUTHENTICATION REQUIRED</span>
           </div>
         </div>
 
@@ -194,6 +194,11 @@ export function AuthScreen({ onLogin }: Props) {
               <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2.5 text-sm text-danger-400">
                 <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
                 {error}
+              </div>
+            )}
+            {!isSupabaseConfigured && (
+              <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-300">
+                Supabase is not configured. Copy .env.example to .env and set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to enable sign-in.
               </div>
             )}
 
@@ -228,7 +233,7 @@ export function AuthScreen({ onLogin }: Props) {
                 {/* Primary sign-in CTA */}
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !isSupabaseConfigured}
                   className="flex w-full items-center justify-center gap-2 rounded-lg border border-accent-500/40 bg-accent-500/15 py-3 text-sm font-bold uppercase tracking-widest text-accent-400 shadow-glow-accent transition hover:bg-accent-500 hover:text-white"
                 >
                   {isSubmitting ? 'Signing In...' : 'Sign In'}
@@ -304,7 +309,7 @@ export function AuthScreen({ onLogin }: Props) {
                 {/* Glowing CTA */}
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !isSupabaseConfigured}
                   className="relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-lg border border-accent-500/60 bg-gradient-to-r from-accent-600/30 to-accent-500/20 py-3.5 text-sm font-bold uppercase tracking-widest text-accent-300 shadow-glow-accent transition hover:from-accent-500 hover:to-accent-600 hover:text-white"
                 >
                   <span className="absolute inset-0 animate-pulse-soft rounded-lg bg-accent-500/10" />

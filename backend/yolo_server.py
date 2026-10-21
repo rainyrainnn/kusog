@@ -18,9 +18,10 @@ DEFAULT_MODEL_PATH = r"C:\Users\Carla\Downloads\yolo26n.pt"
 
 
 class DetectionState:
-    def __init__(self, model_name: str) -> None:
+    def __init__(self, model_name: str, class_names: list[str]) -> None:
         self.lock = threading.Lock()
         self.model_name = model_name
+        self.class_names = class_names
         self.camera_online = False
         self.width = 0
         self.height = 0
@@ -56,6 +57,7 @@ class DetectionState:
             return {
                 "status": "ok" if camera_online else "error",
                 "model": self.model_name,
+                "classes": self.class_names,
                 "camera": "online" if camera_online else "offline",
                 "resolution": f"{self.width}x{self.height}" if self.width and self.height else None,
                 "fps": round(self.fps, 1) if self.fps is not None else None,
@@ -200,7 +202,9 @@ def main() -> None:
 
     print(f"Loading YOLO26n model from {args.model}")
     model = YOLO(args.model)
-    state = DetectionState("YOLO26n")
+    model_classes = model.names
+    class_names = list(model_classes.values()) if isinstance(model_classes, dict) else list(model_classes)
+    state = DetectionState("YOLO26n", [str(class_name) for class_name in class_names])
     YoloHandler.model = model
     YoloHandler.state = state
 

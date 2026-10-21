@@ -16,37 +16,71 @@ body,
 
 body {
   margin: 0;
-  background-color: #070b14;
-  color: #e2e8f0;
+  background-color: #071625;
+  color: #d4e2ee;
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* Custom scrollbar */
+.dashboard-shell {
+  isolation: isolate;
+  background-image: linear-gradient(rgba(4, 17, 31, 0.24), rgba(4, 17, 31, 0.24)), url('/hurricane-isabel.jpg');
+  background-position: center 42%;
+  background-size: cover;
+  background-attachment: fixed;
+}
+
+.dashboard-shell > * {
+  position: relative;
+}
+
+.dashboard-main {
+  background: rgba(5, 20, 34, 0.12);
+  backdrop-filter: blur(2px);
+}
+
+.storm-header {
+  background-image: linear-gradient(90deg, rgba(5, 19, 33, 0.58), rgba(8, 28, 46, 0.42)), url('/hurricane-isabel.jpg');
+  background-position: center 32%;
+  background-size: cover;
+  backdrop-filter: blur(8px);
+}
+
+.storm-sidebar {
+  background: rgba(5, 19, 33, 0.38);
+  backdrop-filter: blur(10px);
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #0a0f1c;
+  background: #081a2b;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1c2942;
+  background: #31536b;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #243352;
+  background: #52748a;
 }
 
-/* Range slider styling */
 input[type='range'].slider {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
   height: 6px;
   border-radius: 9999px;
-  background: linear-gradient(to right, #0ea5e9 var(--val, 50%), #1c2942 var(--val, 50%));
+  background: linear-gradient(to right, #22d3ee var(--val, 50%), #24445b var(--val, 50%));
   outline: none;
   cursor: pointer;
 }
@@ -56,29 +90,40 @@ input[type='range'].slider::-webkit-slider-thumb {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #38bdf8;
-  border: 2px solid #070b14;
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.7);
+  background: #22d3ee;
+  border: 2px solid #FFFFFF;
   cursor: pointer;
 }
 input[type='range'].slider::-moz-range-thumb {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #38bdf8;
-  border: 2px solid #070b14;
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.7);
+  background: #22d3ee;
+  border: 2px solid #FFFFFF;
   cursor: pointer;
 }
 
-/* Grid background utility */
-.bg-grid {
-  background-image:
-    linear-gradient(rgba(56, 189, 248, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(56, 189, 248, 0.04) 1px, transparent 1px);
-  background-size: 28px 28px;
+input[type='range'].slider:focus-visible {
+  outline: 3px solid #12304A;
+  outline-offset: 4px;
 }
 
-.text-shadow-glow {
-  text-shadow: 0 0 12px currentColor;
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #22d3ee;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

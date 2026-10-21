@@ -2,15 +2,20 @@ import { useEffect, useState } from 'react';
 import { BrainCircuit, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Panel, StatusDot } from '../Panel';
 import type { Simulation } from '@/hooks/useSimulation';
-import { getDetections, getEdgeHealth, type EdgeDetectionResponse, type EdgeHealth } from '@/lib/edgeService';
+import { hasDamageClasses, isEdgeConfigured, getDetections, getEdgeHealth, type EdgeDetectionResponse, type EdgeHealth } from '@/lib/edgeService';
 
 export function AiAssessment({ sim }: { sim: Simulation }) {
-  void sim;
+  const recordYoloAssessment = sim.recordYoloAssessment;
   const [health, setHealth] = useState<EdgeHealth | null>(null);
   const [result, setResult] = useState<EdgeDetectionResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!isEdgeConfigured) {
+      setError('Set VITE_KUSOG_EDGE_URL in .env to connect the Raspberry Pi edge service.');
+      return;
+    }
+
     let cancelled = false;
 
     const poll = async () => {
@@ -20,6 +25,7 @@ export function AiAssessment({ sim }: { sim: Simulation }) {
           setHealth(nextHealth);
           setResult(nextResult);
           setError(null);
+          recordYoloAssessment(nextResult.detections, nextHealth.status === 'ok', nextHealth.classes ?? []);
         }
       } catch (requestError) {
         if (!cancelled) setError(requestError instanceof Error ? requestError.message : 'YOLO service unavailable.');
@@ -32,10 +38,11 @@ export function AiAssessment({ sim }: { sim: Simulation }) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [recordYoloAssessment]);
 
   const detections = result?.detections ?? [];
   const ready = health?.status === 'ok';
+  const canAssessDamage = hasDamageClasses(health?.classes);
   const model = health?.model || 'YOLO26n';
   const averageConfidence = detections.length
     ? detections.reduce((total, detection) => total + detection.confidence, 0) / detections.length
@@ -100,6 +107,11 @@ export function AiAssessment({ sim }: { sim: Simulation }) {
             <div className="h-full rounded-full bg-gradient-to-r from-ok-600 to-ok-400 transition-all duration-700" style={{ width: `${averageConfidence * 100}%` }} />
           </div>
           <p className="mt-2 text-center text-[10px] text-slate-600">{result?.inferenceTimeMs ?? '—'} ms · {health?.resolution || '—'} · {health?.fps ?? '—'} FPS</p>
+          {ready && !canAssessDamage && (
+            <p className="mt-2 text-center text-[10px] text-warn-300">
+              This model has no damage-related classes. Test result will be Not assessed, not Passed.
+            </p>
+          )}
         </div>
       </div>
     </Panel>

@@ -3,14 +3,20 @@ import { BrainCircuit, ScanEye, Crosshair, Activity, Target, Ruler, AlertTriangl
 import { Panel, StatusDot } from '@/components/Panel';
 import { PageHeader } from '@/components/PageHeader';
 import type { Simulation } from '@/hooks/useSimulation';
-import { CAMERA_STREAM_URL, getDetections, getEdgeHealth, type EdgeDetection, type EdgeDetectionResponse, type EdgeHealth } from '@/lib/edgeService';
+import { CAMERA_STREAM_URL, hasDamageClasses, isCameraConfigured, isEdgeConfigured, getDetections, getEdgeHealth, type EdgeDetection, type EdgeDetectionResponse, type EdgeHealth } from '@/lib/edgeService';
 
 export function AiView({ sim }: { sim: Simulation }) {
+  const recordYoloAssessment = sim.recordYoloAssessment;
   const [health, setHealth] = useState<EdgeHealth | null>(null);
   const [result, setResult] = useState<EdgeDetectionResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!isEdgeConfigured) {
+      setError('Set VITE_KUSOG_EDGE_URL in .env to connect the Raspberry Pi edge service.');
+      return;
+    }
+
     let cancelled = false;
 
     const poll = async () => {
@@ -20,6 +26,7 @@ export function AiView({ sim }: { sim: Simulation }) {
           setHealth(nextHealth);
           setResult(nextResult);
           setError(null);
+          recordYoloAssessment(nextResult.detections, nextHealth.status === 'ok', nextHealth.classes ?? []);
         }
       } catch (requestError) {
         if (!cancelled) setError(requestError instanceof Error ? requestError.message : 'YOLO service unavailable.');
@@ -32,10 +39,11 @@ export function AiView({ sim }: { sim: Simulation }) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [recordYoloAssessment]);
 
   const detections = result?.detections ?? [];
   const connected = health?.status === 'ok';
+  const canAssessDamage = hasDamageClasses(health?.classes);
   const maximumConfidence = detections.length ? Math.max(...detections.map((detection) => detection.confidence)) : 0;
   const averageConfidence = detections.length
     ? detections.reduce((total, detection) => total + detection.confidence, 0) / detections.length
@@ -70,7 +78,11 @@ export function AiView({ sim }: { sim: Simulation }) {
             <div className="relative h-[340px] overflow-hidden rounded-b-xl bg-gradient-to-b from-slate-900 to-base-900">
               <div className="absolute inset-0 bg-grid opacity-40" />
               {sim.isTestRunning && <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-16 animate-scan bg-gradient-to-b from-ok-400/10 to-transparent" />}
-              <img src={CAMERA_STREAM_URL} alt="Raspberry Pi camera used for YOLO26n analysis" className="absolute inset-0 h-full w-full object-contain" />
+              {isCameraConfigured ? (
+                <img src={CAMERA_STREAM_URL} alt="Raspberry Pi camera used for YOLO26n analysis" className="absolute inset-0 h-full w-full object-contain" />
+              ) : (
+                <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-slate-400">Set VITE_KUSOG_CAMERA_URL in .env to display the chamber camera.</div>
+              )}
               {result && result.width > 0 && result.height > 0 && result.detections.map((detection, index) => (
                 <DetectionBox key={`${detection.className}-${index}`} detection={detection} width={result.width} height={result.height} />
               ))}
@@ -116,6 +128,9 @@ export function AiView({ sim }: { sim: Simulation }) {
             <p className="font-mono text-3xl font-bold text-accent-400">{detections.length}</p>
             <p className="mt-1 text-xs text-slate-400">Objects detected</p>
             <p className="mt-2 text-xs text-slate-500">Live results from the Pi camera</p>
+            {connected && !canAssessDamage && (
+              <p className="mt-2 text-xs text-warn-300">This model has no damage-related classes. Test result will be Not assessed, not Passed.</p>
+            )}
           </div>
         </Panel>
 

@@ -1,9 +1,8 @@
 import { ShieldCheck, BrainCircuit, Loader2 } from 'lucide-react';
 import { Panel } from '../Panel';
-import type { Simulation } from '@/hooks/useSimulation';
 import { useSystemStatus } from '@/hooks/useSystemStatus';
 
-export function StructuralStatus({ sim: _sim }: { sim: Simulation }) {
+export function StructuralStatus() {
   const system = useSystemStatus();
   const yoloReady = system.yolo === 'online';
   const color = yoloReady ? 'ok' : 'slate';

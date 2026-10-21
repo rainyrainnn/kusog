@@ -7,9 +7,7 @@ type Props = {
 
 export function ChamberScene({ sim, showBoxes = false }: Props) {
   const running = sim.isTestRunning;
-  const fanSpinning = running && sim.fanSpeed > 0;
-  const fanDur = Math.max(0.3, 2 - sim.fanSpeed / 60);
-  const critical = sim.aiDetections.overall === 'CRITICAL';
+  const critical = sim.testResult === 'FAILED';
   const boxColor = !running ? '#475569' : critical ? '#ef4444' : '#22c55e';
 
   return (
@@ -101,44 +99,6 @@ export function ChamberScene({ sim, showBoxes = false }: Props) {
             )}
           </g>
         )}
-
-        {/* Fan assembly */}
-        <g transform="translate(40,110)">
-          <circle cx="0" cy="0" r="24" fill="#070b14" stroke="#1c2942" strokeWidth="2" />
-          <circle cx="0" cy="0" r="22" fill="#0a0f1c" stroke="#243352" strokeWidth="1.5" />
-          <g
-            className={fanSpinning ? 'origin-center animate-fan-spin' : ''}
-            style={{ transformBox: 'fill-box', animationDuration: `${fanDur}s` }}
-          >
-            <ellipse cx="0" cy="0" rx="3" ry="20" fill="#38bdf8" fillOpacity="0.4" />
-            <ellipse cx="0" cy="0" rx="3" ry="20" fill="#38bdf8" fillOpacity="0.4" transform="rotate(60)" />
-            <ellipse cx="0" cy="0" rx="3" ry="20" fill="#38bdf8" fillOpacity="0.4" transform="rotate(120)" />
-          </g>
-          <circle cx="0" cy="0" r="5" fill="#0ea5e9" />
-          <circle cx="0" cy="0" r="2" fill="#e0f2fe" />
-          {/* Fan speed label */}
-          {running && (
-            <text y="32" fontSize="7" fill="#38bdf8" fontFamily="monospace" textAnchor="middle" fillOpacity="0.7">
-              {sim.fanSpeed}%
-            </text>
-          )}
-        </g>
-
-        {/* Airflow lines */}
-        {fanSpinning &&
-          [0, 1, 2].map((i) => (
-            <path
-              key={i}
-              d={`M64,${108 + (i - 1) * 14} Q130,${100 + (i - 1) * 14} 158,${112 + (i - 1) * 8}`}
-              stroke="#38bdf8"
-              strokeOpacity="0.3"
-              strokeWidth="1.5"
-              fill="none"
-              strokeDasharray="6 6"
-              className="animate-pulse-soft"
-              style={{ animationDelay: `${i * 0.3}s` }}
-            />
-          ))}
 
         {/* Sensor nodes on walls */}
         {[[30, 60], [370, 60], [30, 140], [370, 140]].map(([x, y], i) => (

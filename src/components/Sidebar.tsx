@@ -11,10 +11,12 @@ import {
   Pause,
   Play,
   Octagon,
+  Menu,
+  X,
 } from 'lucide-react';
+import { useState } from 'react';
 import type { Simulation } from '@/hooks/useSimulation';
-import { fmtClock, fmtElapsed } from '@/hooks/useSimulation';
-import { StatusDot } from './Panel';
+import { KusogLogo } from '@/components/KusogLogo';
 
 export type RouteId =
   | 'dashboard'
@@ -41,101 +43,107 @@ const NAV: { id: RouteId; label: string; icon: typeof LayoutDashboard }[] = [
 
 export function Sidebar({ sim, route, onNavigate }: { sim: Simulation; route: RouteId; onNavigate: (r: RouteId) => void }) {
   const running = sim.isTestRunning;
+  const canStart = !sim.isStarting && !sim.isRestoring && !sim.isFinalizing && !sim.hasPendingFinalization && !sim.isTestRunning;
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const navigate = (id: RouteId) => {
+    onNavigate(id);
+    setMobileOpen(false);
+  };
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-base-600/70 bg-base-850/80">
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
-        <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+    <aside className="storm-sidebar z-20 flex w-full shrink-0 flex-col border-b border-sky-200/15 text-white md:w-60 md:border-b-0 md:border-r">
+      <div className="hidden items-center gap-2.5 border-b border-sky-200/15 px-4 py-3 md:flex">
+        <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-md border border-sky-300/20 bg-slate-950/50">
+          <KusogLogo className="h-12 w-12" />
+        </span>
+        <span className="min-w-0">
+          <span className="block font-mono text-sm font-extrabold tracking-wider text-white">KUSOG</span>
+          <span className="block text-[9px] leading-tight text-slate-300">Smart Typhoon<br />Simulation Chamber</span>
+        </span>
+      </div>
+      <div className="flex min-h-12 items-center justify-between px-4 md:hidden">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-300">Control Navigation</span>
+        <button
+          type="button"
+          onClick={() => setMobileOpen((open) => !open)}
+          aria-expanded={mobileOpen}
+          aria-label={mobileOpen ? 'Close navigation' : 'Open navigation'}
+          className="grid h-9 w-9 place-items-center rounded-md border border-sky-200/20 bg-slate-950/40 text-slate-100"
+        >
+          {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+        </button>
+      </div>
+      <nav className={`${mobileOpen ? 'block' : 'hidden'} min-w-0 flex-1 overflow-y-auto px-3 pb-3 md:block md:py-4`}>
+        <p className="hidden px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/60 md:block">
           Navigation
         </p>
-        <ul className="space-y-0.5">
+        <ul className="flex min-w-0 flex-col gap-0.5">
           {NAV.map((item) => {
             const Icon = item.icon;
             const active = route === item.id;
             return (
               <li key={item.id}>
                 <button
-                  onClick={() => onNavigate(item.id)}
-                  className={`group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                  onClick={() => navigate(item.id)}
+                  aria-current={active ? 'page' : undefined}
+                  className={`group flex min-h-10 w-full items-center gap-3 rounded-md px-3 py-2 text-sm transition ${
                     active
-                      ? 'bg-accent-500/15 text-accent-400 shadow-[inset_2px_0_0_0_#0ea5e9]'
-                      : 'text-slate-400 hover:bg-base-700/60 hover:text-slate-200'
+                      ? 'bg-sky-500/15 text-white shadow-[inset_3px_0_0_0_#22d3ee]'
+                      : 'text-white/75 hover:bg-white/10 hover:text-white'
                   }`}
                 >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  <span className="font-medium">{item.label}</span>
-                  {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-accent-400 shadow-glow-accent" />}
+                  <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span className="whitespace-nowrap font-medium">{item.label}</span>
+                  {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-accent-300" />}
                 </button>
               </li>
             );
           })}
         </ul>
 
-        {/* Current Test card */}
-        <div className="mt-5 rounded-xl border border-base-600/70 bg-base-800/70 p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Current Test
-            </span>
-            <span
-              className="flex items-center gap-1.5 rounded-full px-2 py-0.5"
-              style={{ background: running ? 'rgba(34,197,94,0.10)' : 'rgba(239,68,68,0.10)' }}
-            >
-              <StatusDot color={running ? 'ok' : 'danger'} pulse={running} />
-              <span className={`text-[10px] font-bold tracking-wider ${running ? 'text-ok-400' : 'text-danger-400'}`}>
-                {running ? 'RUNNING' : 'STOPPED'}
-              </span>
-            </span>
-          </div>
-          <dl className="space-y-1.5 text-xs">
-            <Row label="Test ID" value={running ? sim.testId : '---'} mono />
-            <Row label="Start Time" value={running && sim.startTime ? fmtClock(sim.startTime) : '--:--:--'} mono />
-            <Row label="Elapsed" value={fmtElapsed(sim.elapsed)} mono accent={running} />
-            <div>
-              <dt className="text-slate-500">Scenario</dt>
-              <dd className="mt-0.5 rounded bg-base-700/60 px-2 py-1 font-medium text-slate-200">
-                {running ? sim.scenario : 'Standby'}
-              </dd>
-            </div>
-          </dl>
-        </div>
       </nav>
 
       {/* Start / Stop button */}
-      <div className="border-t border-base-600/70 p-3">
+      <div className="border-t border-white/15 p-3">
+        {sim.persistenceError && (
+          <div role="alert" className="mb-2 rounded-md border border-danger-400/30 bg-danger-500/10 p-2 text-xs text-red-100">
+            <p>{sim.persistenceError}</p>
+            {sim.hasPendingStart && (
+              <button onClick={sim.retryStart} disabled={sim.isStarting} className="mt-2 font-semibold text-accent-300 underline disabled:opacity-50">
+                {sim.isStarting ? 'Retrying start...' : 'Retry creating this test'}
+              </button>
+            )}
+            {!running && sim.testId && (
+              <button onClick={sim.retryFinalize} disabled={sim.isFinalizing} className="mt-2 font-semibold text-accent-300 underline disabled:opacity-50">
+                {sim.isFinalizing ? 'Retrying save...' : 'Retry saving this test'}
+              </button>
+            )}
+          </div>
+        )}
         {running ? (
           <button
             onClick={sim.stopTest}
-            className="group flex w-full items-center justify-center gap-2 rounded-lg border border-danger-500/40 bg-danger-500/15 py-3 text-sm font-bold uppercase tracking-widest text-danger-400 shadow-glow-danger transition hover:bg-danger-500 hover:text-white"
+            disabled={sim.isFinalizing}
+            className="group flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-red-300/40 bg-red-300/10 py-2 text-sm font-bold uppercase tracking-wider text-red-200 transition hover:bg-red-700 hover:text-white disabled:cursor-wait disabled:opacity-60 md:py-3"
           >
             <Pause className="h-4 w-4" />
-            Stop Test
+            {sim.isFinalizing ? 'Saving Test...' : 'Stop Simulation'}
             <Octagon className="h-3.5 w-3.5 opacity-60 transition group-hover:opacity-100" />
           </button>
         ) : (
           <button
             onClick={sim.startTest}
-            className="group flex w-full items-center justify-center gap-2 rounded-lg border border-ok-500/40 bg-ok-500/15 py-3 text-sm font-bold uppercase tracking-widest text-ok-400 shadow-glow-ok transition hover:bg-ok-500 hover:text-white"
+            disabled={!canStart}
+            className="group flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-emerald-300/40 bg-emerald-300/10 py-2 text-sm font-bold uppercase tracking-wider text-emerald-200 transition hover:bg-emerald-700 hover:text-white disabled:cursor-wait disabled:opacity-60 md:py-3"
           >
             <Play className="h-4 w-4" />
-            Start Test
+            {sim.isStarting ? (sim.hasPendingStart ? 'Retrying Start...' : 'Creating Test...') : sim.isRestoring ? 'Checking Test...' : sim.hasPendingStart ? 'Retry Start' : 'Start Simulation'}
           </button>
         )}
-        <p className="mt-2 text-center text-[10px] text-slate-600">
-          {running ? 'Emergency halt — all systems' : 'Initialize new test sequence'}
+        <p className="mt-1 text-center text-[10px] text-white/55 md:mt-2">
+          {running ? 'Stop and save the current test' : 'A test record is created automatically'}
         </p>
       </div>
     </aside>
-  );
-}
-
-function Row({ label, value, mono, accent }: { label: string; value: string; mono?: boolean; accent?: boolean }) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <dt className="text-slate-500">{label}</dt>
-      <dd className={`truncate ${mono ? 'font-mono' : ''} ${accent ? 'text-accent-400' : 'text-slate-200'}`}>
-        {value}
-      </dd>
-    </div>
   );
 }

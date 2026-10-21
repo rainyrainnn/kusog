@@ -1,8 +1,7 @@
 import { Thermometer, Droplets, Gauge } from 'lucide-react';
 import { Panel } from '../Panel';
-import type { Simulation } from '@/hooks/useSimulation';
 
-export function Environment({ sim: _sim }: { sim: Simulation }) {
+export function Environment() {
   const readings = [
     { icon: Thermometer, label: 'Temperature', unit: '°C', color: 'text-warn-400' },
     { icon: Droplets, label: 'Humidity', unit: '%', color: 'text-accent-400' },

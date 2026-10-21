@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { CAMERA_STREAM_URL, EDGE_URL, getEdgeHealth, type EdgeHealth } from '@/lib/edgeService';
+import { isEdgeConfigured, getEdgeHealth, type EdgeHealth } from '@/lib/edgeService';
+import { isSupabaseConfigured } from '@/lib/supabase';
 
 export type ConnectionStatus = 'online' | 'offline' | 'pending';
 
@@ -39,30 +40,28 @@ export function useSystemStatus() {
         lastChecked: new Date(),
       };
 
-      // Supabase is considered online when its authenticated API endpoint responds.
-      try {
-        const { error } = await supabase.auth.getSession();
-        next.supabase = error ? 'offline' : 'online';
-      } catch {
-        next.supabase = 'offline';
+      if (isSupabaseConfigured) {
+        try {
+          const { error } = await supabase.auth.getSession();
+          next.supabase = error ? 'offline' : 'online';
+        } catch {
+          next.supabase = 'offline';
+        }
       }
 
       // Raspberry Pi + YOLO are derived from the edge server; the camera panel uses the Pi MJPEG stream directly.
-      if (EDGE_URL) {
+      if (isEdgeConfigured) {
         try {
           const health = await getEdgeHealth();
           next.edgeHealth = health;
-          next.raspberryPi = 'online';
-          next.yolo = health.model ? 'online' : 'offline';
+          next.raspberryPi = health.status === 'ok' ? 'online' : 'offline';
+          next.yolo = health.status === 'ok' && health.model ? 'online' : 'offline';
           next.webcam = health.camera === 'online' ? 'online' : 'offline';
         } catch {
           next.raspberryPi = 'offline';
           next.yolo = 'offline';
         }
       }
-
-      // The dashboard camera is the configured Raspberry Pi MJPEG stream, never the laptop webcam.
-      next.webcam = CAMERA_STREAM_URL ? 'online' : 'offline';
 
       if (!cancelled) setStatus(next);
       timer = window.setTimeout(check, 5000);

@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import { FileText, FileDown, CheckCircle2, Loader2, Eye, Archive, RefreshCw, Home } from 'lucide-react';
 import { Panel } from '@/components/Panel';
 import { PageHeader } from '@/components/PageHeader';
-import { fmtElapsed, type Simulation } from '@/hooks/useSimulation';
+import { fmtElapsed } from '@/hooks/useSimulation';
 import { fetchTestRecords, type TestRecord } from '@/lib/testRecords';
 import { generatePdf } from '@/lib/pdfReport';
 
 type GenState = 'idle' | 'generating' | 'done';
 
-export function ReportsView({ sim }: { sim: Simulation }) {
+export function ReportsView() {
   const [records, setRecords] = useState<TestRecord[]>([]);
   const [selected, setSelected] = useState<string>('');
   const [genState, setGenState] = useState<GenState>('idle');
@@ -41,8 +41,18 @@ export function ReportsView({ sim }: { sim: Simulation }) {
     }
   };
 
-  const statusColor = (s: string) =>
-    s === 'RUNNING' ? 'bg-ok-500/15 text-ok-400' : s === 'COMPLETED' ? 'bg-accent-500/15 text-accent-400' : 'bg-slate-500/15 text-slate-400';
+  const resultLabel = (record: TestRecord) => {
+    if (record.status === 'FAILED' || record.ai_overall === 'DAMAGE DETECTED') return 'Failed';
+    if (record.status === 'COMPLETED' && record.ai_overall === 'PASSED') return 'Passed';
+    if (record.status === 'RUNNING') return 'In progress';
+    return 'Not assessed';
+  };
+  const resultColor = (record: TestRecord) =>
+    resultLabel(record) === 'Failed'
+      ? 'bg-danger-500/15 text-danger-400'
+      : resultLabel(record) === 'Passed'
+        ? 'bg-ok-500/15 text-ok-400'
+        : record.status === 'RUNNING' ? 'bg-accent-500/15 text-accent-400' : 'bg-slate-500/15 text-slate-400';
 
   return (
     <div className="space-y-4">
@@ -90,7 +100,7 @@ export function ReportsView({ sim }: { sim: Simulation }) {
                       )}
                     </div>
                     <div className="text-right ml-2 flex-shrink-0">
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${statusColor(t.status)}`}>{t.status}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${resultColor(t)}`}>{resultLabel(t)}</span>
                       <p className="mt-1 font-mono text-xs text-slate-500">{fmtElapsed(t.duration_seconds)}</p>
                     </div>
                   </button>
@@ -113,7 +123,7 @@ export function ReportsView({ sim }: { sim: Simulation }) {
                 <div className="rounded-lg border border-base-600/70 bg-base-900/50 p-4">
                   <div className="mb-3 flex items-center justify-between">
                     <h3 className="font-mono text-sm font-bold text-accent-400">{current.test_id}</h3>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${statusColor(current.status)}`}>{current.status}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${resultColor(current)}`}>{resultLabel(current)}</span>
                   </div>
 
                   {/* Test info */}

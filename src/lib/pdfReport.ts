@@ -7,7 +7,7 @@
  */
 
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import autoTable, { type Table } from 'jspdf-autotable';
 import { fmtDate, fmtClock, fmtElapsed } from '@/hooks/useSimulation';
 import type { TestRecord } from './testRecords';
 
@@ -38,12 +38,17 @@ function sectionTitle(doc: jsPDF, text: string, y: number, num: string) {
   return y + 8;
 }
 
-function getY(doc: jsPDF): number {
-  return (doc as any).lastAutoTable?.finalY ?? 0;
+type LayoutCursor = { manualFinalY: number; pageNumber: number };
+
+function getY(doc: jsPDF, cursor: LayoutCursor): number {
+  const tableDoc = doc as jsPDF & { getLastAutoTable?: () => Table | null };
+  const table = tableDoc.getLastAutoTable?.();
+  const manualFinalY = table?.startPageNumber === cursor.pageNumber ? cursor.manualFinalY : 0;
+  return Math.max(table?.finalY ?? 0, manualFinalY);
 }
 
-function ensurePage(doc: jsPDF, needed = 40): number {
-  const y = getY(doc);
+function ensurePage(doc: jsPDF, cursor: LayoutCursor, needed = 40): number {
+  const y = getY(doc, cursor);
   if (y + needed > 270) {
     doc.addPage();
     return 20;
@@ -69,6 +74,7 @@ async function loadImageAsDataUrl(url: string): Promise<string | null> {
 
 export async function generatePdf(record: TestRecord, generatedAt: Date): Promise<void> {
   const doc = new jsPDF();
+  const cursor: LayoutCursor = { manualFinalY: 0, pageNumber: 1 };
 
   // ── Cover header ──────────────────────────────────────────────────────────
   doc.setFillColor(...CLR_HEADER_BG);
@@ -99,7 +105,11 @@ export async function generatePdf(record: TestRecord, generatedAt: Date): Promis
     body: [
       ['Test ID',    record.test_id],
       ['Scenario',   record.scenario],
-      ['Status',     record.status],
+      ['Result', record.status === 'FAILED' || record.ai_overall === 'DAMAGE DETECTED'
+        ? 'FAILED'
+        : record.status === 'COMPLETED' && record.ai_overall === 'PASSED'
+          ? 'PASSED'
+          : record.status === 'RUNNING' ? 'IN PROGRESS' : 'NOT ASSESSED'],
       ['Start Time', record.start_time ? fmtClock(new Date(record.start_time)) : '—'],
       ['End Time',   record.end_time   ? fmtClock(new Date(record.end_time))   : '—'],
       ['Duration',   fmtElapsed(record.duration_seconds)],
@@ -111,7 +121,7 @@ export async function generatePdf(record: TestRecord, generatedAt: Date): Promis
   });
 
   // ── 2. HOUSE MODEL AND MATERIALS ──────────────────────────────────────────
-  y = ensurePage(doc, 80);
+  y = ensurePage(doc, cursor, 80);
   y = sectionTitle(doc, 'House Model and Materials', y, '2');
 
   // Try to load house model image
@@ -119,8 +129,6 @@ export async function generatePdf(record: TestRecord, generatedAt: Date): Promis
   if (record.house_model_image_url) {
     imgDataUrl = await loadImageAsDataUrl(record.house_model_image_url);
   }
-
-  const hasHouseInfo = record.house_model_name || record.wall_material || record.roof_material || record.floor_material;
 
   autoTable(doc, {
     startY: y,
@@ -140,7 +148,7 @@ export async function generatePdf(record: TestRecord, generatedAt: Date): Promis
 
   // Insert house image if available
   if (imgDataUrl) {
-    const imgY = ensurePage(doc, 80);
+    const imgY = ensurePage(doc, cursor, 80);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(100, 116, 139);
@@ -151,21 +159,22 @@ export async function generatePdf(record: TestRecord, generatedAt: Date): Promis
     // Draw at reasonable size, capped to page width
     try {
       doc.addImage(imgDataUrl, 'JPEG', 14, imgY + 4, maxW, maxH, undefined, 'MEDIUM');
-      // Move lastAutoTable.finalY manually since addImage doesn't update it
-      (doc as any).lastAutoTable = { finalY: imgY + 4 + maxH };
+      cursor.manualFinalY = imgY + 4 + maxH;
+      cursor.pageNumber = doc.getCurrentPageInfo().pageNumber;
     } catch {
       // Image failed; continue without it
     }
   } else if (record.house_model_image_url) {
-    const noImgY = getY(doc) + 6;
+    const noImgY = getY(doc, cursor) + 6;
     doc.setFontSize(9);
     doc.setTextColor(100, 116, 139);
     doc.text('[House model image could not be loaded]', 14, noImgY);
-    (doc as any).lastAutoTable = { finalY: noImgY };
+    cursor.manualFinalY = noImgY;
+    cursor.pageNumber = doc.getCurrentPageInfo().pageNumber;
   }
 
   // ── 3. SENSOR RESULTS ─────────────────────────────────────────────────────
-  y = ensurePage(doc, 60);
+  y = ensurePage(doc, cursor, 60);
   y = sectionTitle(doc, 'Sensor Results', y, '3');
 
   autoTable(doc, {
@@ -185,7 +194,7 @@ export async function generatePdf(record: TestRecord, generatedAt: Date): Promis
   });
 
   // ── 4. AI STRUCTURAL ASSESSMENT ───────────────────────────────────────────
-  y = ensurePage(doc, 60);
+  y = ensurePage(doc, cursor, 60);
   y = sectionTitle(doc, 'AI Structural Assessment', y, '4');
 
   autoTable(doc, {
@@ -205,7 +214,7 @@ export async function generatePdf(record: TestRecord, generatedAt: Date): Promis
   });
 
   // ── 5. CAMERA INFORMATION ─────────────────────────────────────────────────
-  y = ensurePage(doc, 40);
+  y = ensurePage(doc, cursor, 40);
   y = sectionTitle(doc, 'Camera Information', y, '5');
 
   autoTable(doc, {
@@ -221,15 +230,14 @@ export async function generatePdf(record: TestRecord, generatedAt: Date): Promis
     styles: cellStyle,
   });
 
-  // ── 6. SENSOR AND CONTROL DATA ────────────────────────────────────────────
-  y = ensurePage(doc, 40);
-  y = sectionTitle(doc, 'Sensor and Control Data', y, '6');
+  // ── 6. SENSOR DATA ────────────────────────────────────────────────────────
+  y = ensurePage(doc, cursor, 40);
+  y = sectionTitle(doc, 'Sensor Data', y, '6');
 
   autoTable(doc, {
     startY: y,
     head: [['Field', 'Value']],
     body: [
-      ['Fan Speed',       `${record.fan_speed ?? '—'}%`],
       ['Rain Level (raw)', record.rain_level_raw ?? record.rain_level ?? '—'],
       ['Rain State', record.rain_state ?? '—'],
       ['24h Rain', record.rain_24h ?? '—'],
@@ -246,7 +254,7 @@ export async function generatePdf(record: TestRecord, generatedAt: Date): Promis
   // ── 7. RECENT LOG ENTRIES ─────────────────────────────────────────────────
   const logEntries = (record.log_entries ?? []) as Array<{ time: string; message: string }>;
   if (logEntries.length > 0) {
-    y = ensurePage(doc, 40);
+    y = ensurePage(doc, cursor, 40);
     y = sectionTitle(doc, 'Recent Log Entries', y, '7');
 
     autoTable(doc, {

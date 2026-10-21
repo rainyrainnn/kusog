@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, type ComponentType, type ReactNode } from 'react';
 import { SlidersHorizontal, Volume2, Gauge, Thermometer, Wind } from 'lucide-react';
+import type { LucideProps } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 
 const REFRESH_RATES = [
@@ -101,7 +102,7 @@ export function PreferencesModal({ open, onClose }: { open: boolean; onClose: ()
   );
 }
 
-function Section({ icon: Icon, label, children }: { icon: any; label: string; children: React.ReactNode }) {
+function Section({ icon: Icon, label, children }: { icon: ComponentType<LucideProps>; label: string; children: ReactNode }) {
   return (
     <div>
       <div className="mb-2 flex items-center gap-2">

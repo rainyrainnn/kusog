@@ -4,35 +4,49 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Deep blue/grey control center palette
+        // KUSOG environmental monitoring palette
         base: {
-          900: '#070b14',
-          850: '#0a0f1c',
-          800: '#0d1424',
-          750: '#111a2e',
-          700: '#162038',
-          600: '#1c2942',
-          500: '#243352',
+          950: '#061321',
+          900: '#081a2b',
+          850: '#0b2034',
+          800: '#102a43',
+          750: '#15334d',
+          700: '#1b3d58',
+          600: '#28516b',
+          500: '#52748a',
         },
         accent: {
-          // Electric blue
-          400: '#38bdf8',
+          300: '#67e8f9',
+          400: '#22d3ee',
           500: '#0ea5e9',
           600: '#0284c7',
         },
         ok: {
-          400: '#4ade80',
-          500: '#22c55e',
-          600: '#16a34a',
+          400: '#5ee0b0',
+          500: '#10b981',
+          600: '#059669',
         },
         warn: {
           400: '#fbbf24',
-          500: '#f59e0b',
+          500: '#d99a20',
         },
         danger: {
-          400: '#f87171',
-          500: '#ef4444',
-          600: '#dc2626',
+          400: '#fb7185',
+          500: '#e5485d',
+          600: '#be3447',
+        },
+        slate: {
+          50: '#f7fbff',
+          100: '#e8f1f8',
+          200: '#d4e2ee',
+          300: '#b4c9d8',
+          400: '#93adbf',
+          500: '#7792a6',
+          600: '#607b90',
+          700: '#48657a',
+          800: '#2d4b61',
+          900: '#17344b',
+          950: '#0b2034',
         },
       },
       fontFamily: {
@@ -40,10 +54,10 @@ export default {
         mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
       },
       boxShadow: {
-        'glow-accent': '0 0 0 1px rgba(14,165,233,0.4), 0 0 24px -6px rgba(14,165,233,0.45)',
-        'glow-ok': '0 0 0 1px rgba(34,197,94,0.4), 0 0 24px -6px rgba(34,197,94,0.45)',
-        'glow-danger': '0 0 0 1px rgba(239,68,68,0.4), 0 0 24px -6px rgba(239,68,68,0.45)',
-        panel: '0 1px 0 0 rgba(255,255,255,0.03) inset, 0 8px 30px -12px rgba(0,0,0,0.7)',
+        'glow-accent': '0 0 0 1px rgba(22,140,140,0.14)',
+        'glow-ok': '0 0 0 1px rgba(47,133,90,0.14)',
+        'glow-danger': '0 0 0 1px rgba(192,57,43,0.14)',
+        panel: '0 8px 24px rgba(0,8,18,0.24)',
       },
       keyframes: {
         'fadeIn': {

@@ -1,8 +1,14 @@
-import { useState } from 'react';
-import { Settings, Cpu, BrainCircuit, ShieldAlert, Database, Download, RotateCcw, CheckCircle2, Gauge, Camera } from 'lucide-react';
+import { useState, type CSSProperties } from 'react';
+import { Settings, Cpu, BrainCircuit, ShieldAlert, Database, Download, RotateCcw, CheckCircle2, Gauge } from 'lucide-react';
 import { Panel, StatusDot } from '@/components/Panel';
 import { PageHeader } from '@/components/PageHeader';
 import { fmtElapsed, type Simulation } from '@/hooks/useSimulation';
+
+type SliderStyle = CSSProperties & { '--val': string };
+
+function sliderStyle(value: string): SliderStyle {
+  return { '--val': value };
+}
 
 export function SettingsView({ sim }: { sim: Simulation }) {
   const [mpuZeroed, setMpuZeroed] = useState(false);
@@ -68,7 +74,7 @@ export function SettingsView({ sim }: { sim: Simulation }) {
                 value={loadCellOffset}
                 onChange={(e) => setLoadCellOffset(+e.target.value)}
                 className="slider"
-                style={{ ['--val' as any]: `${((loadCellOffset + 5) / 10) * 100}%` }}
+                style={sliderStyle(`${((loadCellOffset + 5) / 10) * 100}%`)}
               />
               <button onClick={() => setLoadCellOffset(0)} className="mt-2 text-xs text-slate-500 hover:text-accent-400">
                 Reset to zero
@@ -111,7 +117,7 @@ export function SettingsView({ sim }: { sim: Simulation }) {
                 value={yoloThreshold}
                 onChange={(e) => setYoloThreshold(+e.target.value)}
                 className="slider"
-                style={{ ['--val' as any]: `${yoloThreshold}%` }}
+                style={sliderStyle(`${yoloThreshold}%`)}
               />
               <p className="mt-1 text-xs text-slate-500">Minimum confidence for bounding box detection.</p>
             </div>
@@ -157,7 +163,7 @@ export function SettingsView({ sim }: { sim: Simulation }) {
                 value={maxForce}
                 onChange={(e) => setMaxForce(+e.target.value)}
                 className="slider"
-                style={{ ['--val' as any]: `${((maxForce - 10) / 50) * 100}%` }}
+                style={sliderStyle(`${((maxForce - 10) / 50) * 100}%`)}
               />
               <p className="mt-1 text-xs text-slate-500">Test auto-stops when base uplift force exceeds this value. Default: 45 N</p>
             </div>

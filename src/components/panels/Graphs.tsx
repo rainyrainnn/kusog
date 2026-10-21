@@ -10,6 +10,7 @@ import {
   CartesianGrid,
   Tooltip,
   ReferenceLine,
+  type TooltipValueType,
 } from 'recharts';
 
 function LiveBadge({ label, value, color }: { label: string; value: string; color: 'accent' | 'ok' | 'warn' | 'danger' }) {
@@ -57,7 +58,7 @@ function ChartShell({ data, color, yLabel, yDomain }: {
         <CartesianGrid stroke="#1c2942" strokeDasharray="3 3" vertical={false} />
         <XAxis dataKey="t" tick={{ fontSize: 9, fill: '#475569' }} stroke="#1c2942" tickLine={false} interval="preserveStartEnd" minTickGap={30} />
         <YAxis tick={{ fontSize: 9, fill: '#475569' }} stroke="#1c2942" tickLine={false} domain={yDomain} width={36} />
-        <Tooltip contentStyle={tooltipStyle} labelFormatter={(t) => `t = ${t}s`} formatter={(v: any) => [Number(v).toFixed(2), yLabel]} />
+        <Tooltip contentStyle={tooltipStyle} labelFormatter={(t) => `t = ${t}s`} formatter={(value: TooltipValueType | undefined) => [Number(value).toFixed(2), yLabel]} />
         <Area type="monotone" dataKey="value" stroke={color} strokeWidth={1.8} fill={`url(#grad-${color})`} isAnimationActive={false} dot={false} />
         <ReferenceLine y={0} stroke="#1c2942" />
       </AreaChart>

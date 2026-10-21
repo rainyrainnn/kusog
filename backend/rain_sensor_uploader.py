@@ -11,6 +11,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 
@@ -95,6 +96,18 @@ def fetch_reading() -> dict[str, Any]:
 
 
 def upload_reading(reading: dict[str, Any]) -> None:
+    query = urlencode({"select": "id", "status": "eq.RUNNING", "order": "start_time.desc", "limit": "1"})
+    lookup = Request(
+        f"{SUPABASE_URL}/rest/v1/test_records?{query}",
+        headers={
+            "apikey": SUPABASE_SERVICE_ROLE_KEY,
+            "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        },
+        method="GET",
+    )
+    with urlopen(lookup, timeout=10) as response:
+        active_tests = json.loads(response.read().decode("utf-8"))
+    reading["test_record_id"] = active_tests[0]["id"] if active_tests else None
     body = json.dumps(reading).encode("utf-8")
     request = Request(
         f"{SUPABASE_URL}/rest/v1/rain_sensor_readings",
