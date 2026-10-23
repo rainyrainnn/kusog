@@ -113,7 +113,7 @@ export function Sidebar({ sim, route, onNavigate }: { sim: Simulation; route: Ro
                 {sim.isStarting ? 'Retrying start...' : 'Retry creating this test'}
               </button>
             )}
-            {!running && sim.testId && (
+            {sim.hasPendingFinalization && sim.testId && (
               <button onClick={sim.retryFinalize} disabled={sim.isFinalizing} className="mt-2 font-semibold text-accent-300 underline disabled:opacity-50">
                 {sim.isFinalizing ? 'Retrying save...' : 'Retry saving this test'}
               </button>
@@ -123,7 +123,7 @@ export function Sidebar({ sim, route, onNavigate }: { sim: Simulation; route: Ro
         {running ? (
           <button
             onClick={sim.stopTest}
-            disabled={sim.isFinalizing}
+            disabled={sim.isFinalizing || sim.hasPendingFinalization}
             className="group flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-red-300/40 bg-red-300/10 py-2 text-sm font-bold uppercase tracking-wider text-red-200 transition hover:bg-red-700 hover:text-white disabled:cursor-wait disabled:opacity-60 md:py-3"
           >
             <Pause className="h-4 w-4" />

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useTestSession } from '@/hooks/useTestSession';
 
 export type RainSensorData = {
   connected: boolean;
@@ -40,6 +41,7 @@ function isRecent(timestamp: string | null): boolean {
 }
 
 export function useRainSensor() {
+  const { ready, recordId } = useTestSession();
   const [data, setData] = useState<RainSensorData>(EMPTY_SENSOR);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,8 +49,21 @@ export function useRainSensor() {
   const hadReading = useRef(false);
 
   useEffect(() => {
+    if (!ready || !recordId) {
+      setData(EMPTY_SENSOR);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
     let active = true;
     let polling = false;
+    noReadingSince.current = Date.now();
+    hadReading.current = false;
+    setData(EMPTY_SENSOR);
+    setError(null);
+    setLoading(true);
+
     const poll = async () => {
       if (polling) return;
       polling = true;
@@ -56,6 +71,7 @@ export function useRainSensor() {
         const { data: row, error: queryError } = await supabase
           .from('rain_sensor_readings')
           .select('rain_level, rain_state, rain_24h, battery_percentage, recorded_at')
+          .eq('test_record_id', recordId)
           .order('recorded_at', { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -121,7 +137,7 @@ export function useRainSensor() {
       active = false;
       window.clearInterval(interval);
     };
-  }, []);
+  }, [ready, recordId]);
 
   return { data, error, loading };
 }

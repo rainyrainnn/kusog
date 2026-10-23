@@ -26,7 +26,7 @@ export function WindDirection({ sim }: { sim: Simulation }) {
     <Panel
       title="Wind Direction"
       icon={<Compass className="h-4 w-4" />}
-      right={<span className={`text-[10px] font-bold ${sim.windSensorConnected ? 'text-ok-400' : 'text-danger-400'}`}>{sim.windSensorConnected ? 'LIVE' : 'OFFLINE'}</span>}
+      right={<span className={`text-[10px] font-bold ${sim.windSensorConnected ? 'text-ok-400' : 'text-danger-400'}`}>{!sim.isTestRunning ? 'INACTIVE' : sim.windSensorConnected ? 'LIVE' : 'OFFLINE'}</span>}
       className="h-full"
     >
       <div className="flex h-full flex-col items-center justify-center gap-3">
@@ -38,7 +38,7 @@ export function WindDirection({ sim }: { sim: Simulation }) {
             </p>
             <p className="text-xs text-slate-400">{cardinal.full}</p>
           </div>
-        </> : <p className="py-12 text-center text-sm font-semibold text-danger-400">Wind Sensor Offline</p>}
+        </> : <p className="py-12 text-center text-sm font-semibold text-slate-400">{sim.isTestRunning ? 'Wind Sensor Offline' : 'Waiting to start'}</p>}
       </div>
     </Panel>
   );

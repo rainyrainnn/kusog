@@ -5,6 +5,7 @@ import type { LoadCellData } from '@/lib/loadCell';
 import type { WindSensorData } from '@/lib/windSensor';
 import { hasDamageClasses, isDamageClassName, type EdgeDetection } from '@/lib/edgeService';
 import { updateRunningTestAssessment } from '@/lib/testRecords';
+import { useTestSession } from '@/hooks/useTestSession';
 
 
 export type LogEntry = {
@@ -97,6 +98,7 @@ export const EMPTY_HOUSE: HouseSelection = {
 };
 
 export function useSimulation({ loadCell, windSensor }: { loadCell: LoadCellData; windSensor: WindSensorData }) {
+  const { setActiveTest, setInactive } = useTestSession();
   // Clock
   const [now, setNow] = useState(() => new Date());
 
@@ -111,10 +113,10 @@ export function useSimulation({ loadCell, windSensor }: { loadCell: LoadCellData
   const [house, setHouse] = useState<HouseSelection>(EMPTY_HOUSE);
 
   // Telemetry
-  const windSpeed = windSensor.connected ? windSensor.windSpeedMps ?? 0 : 0;
-  const windDir = windSensor.connected ? windSensor.windDirectionDeg ?? 0 : 0;
+  const windSpeed = isTestRunning && windSensor.connected ? windSensor.windSpeedMps ?? 0 : 0;
+  const windDir = isTestRunning && windSensor.connected ? windSensor.windDirectionDeg ?? 0 : 0;
   const [aiConfidence, setAiConfidence] = useState(0);
-  const currentForce = loadCell.connected ? loadCell.upliftForceN ?? 0 : 0;
+  const currentForce = isTestRunning && loadCell.connected ? loadCell.upliftForceN ?? 0 : 0;
 
   // AI detections
   const [aiDetections, setAiDetections] = useState({
@@ -164,7 +166,7 @@ export function useSimulation({ loadCell, windSensor }: { loadCell: LoadCellData
   }, [isTestRunning]);
 
   useEffect(() => {
-    if (!loadCell.connected || !loadCell.recordedAt) {
+    if (!isTestRunning || !loadCell.connected || !loadCell.recordedAt) {
       forceTickRef.current = 0;
       setForceHist([]);
       return;
@@ -175,7 +177,7 @@ export function useSimulation({ loadCell, windSensor }: { loadCell: LoadCellData
       ...previous.slice(-(HISTORY_LEN - 1)),
       { t: forceTickRef.current, value: loadCell.upliftForceN ?? 0 },
     ]);
-  }, [loadCell.connected, loadCell.recordedAt, loadCell.upliftForceN]);
+  }, [isTestRunning, loadCell.connected, loadCell.recordedAt, loadCell.upliftForceN]);
 
   const [isStarting, setIsStarting] = useState(false);
   const [hasPendingStart, setHasPendingStart] = useState(false);
@@ -186,7 +188,7 @@ export function useSimulation({ loadCell, windSensor }: { loadCell: LoadCellData
   const [testRecord, setTestRecord] = useState<TestRecord | null>(null);
   const lifecycleLockRef = useRef(false);
   const pendingStartRef = useRef<StartTestPayload | null>(null);
-  const pendingFinalizationRef = useRef<{ testId: string; payload: FinalTestPayload } | null>(null);
+  const pendingFinalizationRef = useRef<{ recordId: string; testId: string; payload: FinalTestPayload } | null>(null);
 
   // Snapshot current hardware readings so stop always saves the latest available values.
   const snapshotRef = useRef({
@@ -204,7 +206,11 @@ export function useSimulation({ loadCell, windSensor }: { loadCell: LoadCellData
   useEffect(() => {
     let active = true;
     getRunningTestRecord().then((record) => {
-      if (!active || !record) return;
+      if (!active) return;
+      if (!record) {
+        setInactive();
+        return;
+      }
       const restoredStart = record.start_time ? new Date(record.start_time) : new Date();
       setTestRecord(record);
       setTestId(record.test_id);
@@ -233,17 +239,21 @@ export function useSimulation({ loadCell, windSensor }: { loadCell: LoadCellData
         otherMaterials: record.other_materials ?? '',
       });
       setIsTestRunning(true);
+      setActiveTest(record.id);
       addLog(`Resumed active test ${record.test_id} after page reload`, 'warn');
     }).catch((error: unknown) => {
-      if (active) setPersistenceError(error instanceof Error ? error.message : 'Unable to check for an unfinished simulation.');
+      if (active) {
+        setInactive();
+        setPersistenceError(error instanceof Error ? error.message : 'Unable to check for an unfinished simulation.');
+      }
     }).finally(() => {
       if (active) setIsRestoring(false);
     });
     return () => { active = false; };
-  }, [addLog]);
+  }, [addLog, setActiveTest, setInactive]);
 
   const recordYoloAssessment = useCallback((detections: EdgeDetection[], available: boolean, modelClasses: string[]) => {
-    if (!available || !hasDamageClasses(modelClasses)) return;
+    if (!isTestRunning || !available || !hasDamageClasses(modelClasses)) return;
     hasYoloAssessmentRef.current = true;
     const damageClasses = [...new Set(
       detections
@@ -263,20 +273,20 @@ export function useSimulation({ loadCell, windSensor }: { loadCell: LoadCellData
       overall: hasDamage ? 'DAMAGE DETECTED' : 'PASSED',
     });
 
-    if (!isTestRunning || !testId || damageClasses.length === 0) return;
+    if (!isTestRunning || !testRecord?.id || damageClasses.length === 0) return;
     const newlyDetected = damageClasses.filter((className) => !damageClassesRef.current.includes(className));
     if (newlyDetected.length === 0 && damageDetectedRef.current) return;
     damageDetectedRef.current = true;
     damageClassesRef.current = observedDamageClasses;
     addLog(`YOLO damage detected: ${damageClasses.join(', ')}. This test will be marked Failed.`, 'error');
-    void updateRunningTestAssessment(testId, {
+    void updateRunningTestAssessment(testRecord.id, {
       ai_confidence: confidence,
       ai_cracks: damageClassesRef.current.join(', '),
       ai_overall: 'DAMAGE DETECTED',
     }).catch((error: unknown) => {
       addLog(`Unable to save the YOLO damage assessment: ${error instanceof Error ? error.message : 'Unknown database error.'}`, 'error');
     });
-  }, [addLog, isTestRunning, testId]);
+  }, [addLog, isTestRunning, testRecord]);
 
   const startTest = useCallback(async () => {
     if (lifecycleLockRef.current || isTestRunning || isRestoring || pendingFinalizationRef.current) return;
@@ -289,6 +299,7 @@ export function useSimulation({ loadCell, windSensor }: { loadCell: LoadCellData
         const snap = snapshotRef.current;
         pendingStartRef.current = {
           id: crypto.randomUUID(),
+          test_id: `KUSOG-${start.toISOString().slice(0, 10).replace(/-/g, '')}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
           scenario,
           start_time: start.toISOString(),
           end_time: null,
@@ -322,6 +333,7 @@ export function useSimulation({ loadCell, windSensor }: { loadCell: LoadCellData
       pendingStartRef.current = null;
       setHasPendingStart(false);
       setTestRecord(record);
+      setActiveTest(record.id);
       setHasPendingFinalization(false);
       damageDetectedRef.current = false;
       damageClassesRef.current = [];
@@ -344,7 +356,7 @@ export function useSimulation({ loadCell, windSensor }: { loadCell: LoadCellData
       lifecycleLockRef.current = false;
       setIsStarting(false);
     }
-  }, [addLog, house, isRestoring, isTestRunning, loadCell.connected, scenario, windSensor.connected]);
+  }, [addLog, house, isRestoring, isTestRunning, loadCell.connected, scenario, setActiveTest, windSensor.connected]);
 
   const finalizePendingTest = useCallback(async () => {
     const pending = pendingFinalizationRef.current;
@@ -353,10 +365,13 @@ export function useSimulation({ loadCell, windSensor }: { loadCell: LoadCellData
     setIsFinalizing(true);
     setPersistenceError(null);
     try {
-      const record = await finalizeTestRecord(pending.testId, pending.payload);
+      const record = await finalizeTestRecord(pending.recordId, pending.payload);
       setTestRecord(record);
       pendingFinalizationRef.current = null;
       setHasPendingFinalization(false);
+      setIsTestRunning(false);
+      setInactive();
+      setForceHist([]);
       addLog(
         `Simulation finalized and saved: ${pending.testId} (${record.status === 'FAILED' ? 'FAILED' : record.ai_overall === 'PASSED' ? 'PASSED' : 'NOT ASSESSED'})`,
         record.status === 'FAILED' ? 'error' : 'ok',
@@ -369,12 +384,11 @@ export function useSimulation({ loadCell, windSensor }: { loadCell: LoadCellData
       lifecycleLockRef.current = false;
       setIsFinalizing(false);
     }
-  }, [addLog]);
+  }, [addLog, setInactive]);
 
   const stopTest = useCallback(async () => {
-    if (!isTestRunning || lifecycleLockRef.current || !testId || !startTime) return;
+    if (!isTestRunning || lifecycleLockRef.current || !testRecord?.id || !testId || !startTime) return;
     lifecycleLockRef.current = true;
-    setIsTestRunning(false);
     const endedAt = new Date();
     const durationSeconds = Math.max(0, Math.floor((endedAt.getTime() - startTime.getTime()) / 1000));
     setElapsed(durationSeconds);
@@ -403,11 +417,11 @@ export function useSimulation({ loadCell, windSensor }: { loadCell: LoadCellData
       fan_speed: 0,
       log_entries: [...logs.slice(-49), stoppedLog],
     };
-    pendingFinalizationRef.current = { testId, payload };
+    pendingFinalizationRef.current = { recordId: testRecord.id, testId, payload };
     setHasPendingFinalization(true);
     lifecycleLockRef.current = false;
     await finalizePendingTest();
-  }, [addLog, isTestRunning, loadCell.connected, logs, startTime, testId, windSensor.connected, finalizePendingTest]);
+  }, [addLog, isTestRunning, loadCell.connected, logs, startTime, testId, testRecord, windSensor.connected, finalizePendingTest]);
 
   const testStatus = isTestRunning
     ? 'RUNNING'
@@ -450,14 +464,14 @@ export function useSimulation({ loadCell, windSensor }: { loadCell: LoadCellData
     windDir,
     // Telemetry
     windSpeed,
-    windHist: windSensor.history,
-    windSensorConnected: windSensor.connected,
+    windHist: isTestRunning ? windSensor.history : [],
+    windSensorConnected: isTestRunning && windSensor.connected,
     aiConfidence,
     aiDetections,
     recordYoloAssessment,
     currentForce,
     forceHist,
-    loadCellConnected: loadCell.connected,
+    loadCellConnected: isTestRunning && loadCell.connected,
     // Logs
     logs,
     addLog,

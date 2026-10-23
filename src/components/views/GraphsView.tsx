@@ -91,7 +91,7 @@ export function GraphsView({ sim }: { sim: Simulation }) {
           <div className="flex items-center gap-2 rounded-lg border border-base-600/70 bg-base-800/60 px-3 py-1.5">
             <span className="text-[10px] uppercase tracking-wider text-slate-500">Current Force</span>
             <span className={`font-mono text-sm font-bold ${sim.loadCellConnected ? 'text-ok-400' : 'text-danger-400'}`}>
-              {sim.loadCellConnected ? `${sim.currentForce.toFixed(1)} N` : 'Base Uplift Sensor Offline'}
+              {sim.loadCellConnected ? `${sim.currentForce.toFixed(1)} N` : sim.isTestRunning ? 'Base Uplift Sensor Offline' : 'Waiting to start'}
             </span>
           </div>
         </div>
@@ -102,7 +102,7 @@ export function GraphsView({ sim }: { sim: Simulation }) {
       <div className="flex items-center justify-between rounded-lg border border-base-600/70 bg-base-800/60 px-4 py-3">
         <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Wind Sensor</span>
         <span className={`font-mono text-sm font-bold ${sim.windSensorConnected ? 'text-ok-400' : 'text-danger-400'}`}>
-          {sim.windSensorConnected ? `${sim.windSpeed.toFixed(1)} m/s · ${sim.windDir.toFixed(1)}° · LIVE` : 'Wind Sensor Offline'}
+          {sim.windSensorConnected ? `${sim.windSpeed.toFixed(1)} m/s · ${sim.windDir.toFixed(1)}° · LIVE` : sim.isTestRunning ? 'Wind Sensor Offline' : 'Waiting to start'}
         </span>
       </div>
       <BigChart
@@ -124,7 +124,7 @@ export function GraphsView({ sim }: { sim: Simulation }) {
             <p className="font-mono text-2xl font-bold text-ok-400">
               {sim.loadCellConnected
                 ? <>{sim.currentForce.toFixed(1)}<span className="ml-1 text-sm text-slate-500">N</span></>
-                : <span className="text-base text-danger-400">Base Uplift Sensor Offline</span>}
+                : <span className="text-base text-danger-400">{sim.isTestRunning ? 'Base Uplift Sensor Offline' : 'Waiting to start'}</span>}
             </p>
           </div>
         </div>

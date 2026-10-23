@@ -73,7 +73,7 @@ export function ForceGraph({ sim }: { sim: Simulation }) {
       icon={<Weight className="h-4 w-4" />}
       right={sim.loadCellConnected
         ? <LiveBadge label="Current" value={`${sim.currentForce.toFixed(1)} N`} color="ok" />
-        : <span className="text-[10px] font-semibold text-danger-400">Base Uplift Sensor Offline</span>}
+        : <span className="text-[10px] font-semibold text-danger-400">{sim.isTestRunning ? 'Base Uplift Sensor Offline' : 'Waiting to start'}</span>}
       className="h-full"
       bodyClassName="p-2"
     >

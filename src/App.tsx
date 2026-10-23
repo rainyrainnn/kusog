@@ -17,6 +17,7 @@ import { supabase } from '@/lib/supabase';
 import { useRainSensor } from '@/lib/rainSensor';
 import { useLoadCell } from '@/lib/loadCell';
 import { useWindSensor } from '@/lib/windSensor';
+import { TestSessionProvider } from '@/hooks/TestSessionProvider';
 
 export type OperatorProfile = {
   fullName: string;
@@ -26,6 +27,14 @@ export type OperatorProfile = {
 };
 
 function Dashboard({ profile, onSignOut }: { profile: OperatorProfile; onSignOut: () => void }) {
+  return (
+    <TestSessionProvider>
+      <DashboardContent profile={profile} onSignOut={onSignOut} />
+    </TestSessionProvider>
+  );
+}
+
+function DashboardContent({ profile, onSignOut }: { profile: OperatorProfile; onSignOut: () => void }) {
   const { data: rainSensor, error: rainSensorError, loading: rainSensorLoading } = useRainSensor();
   const loadCell = useLoadCell();
   const windSensor = useWindSensor();

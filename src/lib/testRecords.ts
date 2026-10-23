@@ -61,7 +61,7 @@ export type TestRecordWithSensorSummary = TestRecord & {
 export type SaveTestPayload = Omit<TestRecord, 'id' | 'created_at'>;
 
 export type StartTestPayload = { id: string }
-  & Pick<SaveTestPayload, 'scenario' | 'start_time' | 'end_time' | 'duration_seconds' | 'status'>
+  & Pick<SaveTestPayload, 'test_id' | 'scenario' | 'start_time' | 'end_time' | 'duration_seconds' | 'status'>
   & Partial<Omit<SaveTestPayload, 'operator_id' | 'test_id' | 'scenario' | 'start_time' | 'end_time' | 'duration_seconds' | 'status'>>;
 
 export type FinalTestPayload = Pick<SaveTestPayload, 'end_time' | 'duration_seconds' | 'status'>
@@ -134,11 +134,11 @@ async function fetchTestRecordById(id: string, operatorId: string): Promise<Test
   return data as TestRecord | null;
 }
 
-export async function finalizeTestRecord(testId: string, payload: FinalTestPayload): Promise<TestRecord> {
+export async function finalizeTestRecord(recordId: string, payload: FinalTestPayload): Promise<TestRecord> {
   const { data, error } = await supabase
     .from('test_records')
     .update(payload)
-    .eq('test_id', testId)
+    .eq('id', recordId)
     .eq('status', 'RUNNING')
     .select()
     .maybeSingle();
@@ -148,25 +148,25 @@ export async function finalizeTestRecord(testId: string, payload: FinalTestPaylo
     return data as TestRecord;
   }
 
-  const existing = await fetchTestRecord(testId);
+  const existing = await fetchTestRecord(recordId);
   if (existing.error) throw existing.error;
   if (existing.data && ['COMPLETED', 'FAILED'].includes(existing.data.status)) return existing.data;
-  throw new Error(`Test ${testId} was not finalized. It remains available for a safe retry.`);
+  throw new Error(`Test record ${recordId} was not finalized. It remains available for a safe retry.`);
 }
 
 export async function updateRunningTestAssessment(
-  testId: string,
+  recordId: string,
   payload: Pick<FinalTestPayload, 'ai_confidence' | 'ai_cracks' | 'ai_overall'>,
 ): Promise<void> {
   const { data, error } = await supabase
     .from('test_records')
     .update(payload)
-    .eq('test_id', testId)
+    .eq('id', recordId)
     .eq('status', 'RUNNING')
     .select('id')
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!data) throw new Error(`Unable to save the YOLO assessment for running test ${testId}.`);
+  if (!data) throw new Error(`Unable to save the YOLO assessment for running test record ${recordId}.`);
   notifyTestRecordsChanged();
 }
 
@@ -257,14 +257,14 @@ export async function fetchTestRecordsWithSensorReadings(): Promise<{
   }
 }
 
-export async function fetchTestRecord(testId: string): Promise<{ data: TestRecord | null; error: Error | null }> {
+export async function fetchTestRecord(recordId: string): Promise<{ data: TestRecord | null; error: Error | null }> {
   const { data: user, error: userError } = await supabase.auth.getUser();
   if (userError) return { data: null, error: new Error(userError.message) };
   if (!user.user) return { data: null, error: new Error('Sign in to access simulation records.') };
   const { data, error } = await supabase
     .from('test_records')
     .select('*')
-    .eq('test_id', testId)
+    .eq('id', recordId)
     .eq('operator_id', user.user.id)
     .maybeSingle();
 

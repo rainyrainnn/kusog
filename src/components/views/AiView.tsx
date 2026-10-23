@@ -12,6 +12,13 @@ export function AiView({ sim }: { sim: Simulation }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!sim.isTestRunning) {
+      setHealth(null);
+      setResult(null);
+      setError(null);
+      return;
+    }
+
     if (!isEdgeConfigured) {
       setError('Set VITE_KUSOG_EDGE_URL in .env to connect the Raspberry Pi edge service.');
       return;
@@ -42,10 +49,10 @@ export function AiView({ sim }: { sim: Simulation }) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [recordYoloAssessment]);
+  }, [recordYoloAssessment, sim.isTestRunning]);
 
-  const detections = result?.detections ?? [];
-  const connected = health?.status === 'ok'
+  const detections = sim.isTestRunning ? result?.detections ?? [] : [];
+  const connected = sim.isTestRunning && health?.status === 'ok'
     && (health.modelReady ?? Boolean(health.model))
     && health.camera === 'online';
   const canAssessDamage = hasDamageClasses(health?.classes);
@@ -88,11 +95,11 @@ export function AiView({ sim }: { sim: Simulation }) {
               ) : (
                 <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-slate-400">Set VITE_KUSOG_EDGE_URL in .env to display the chamber camera. An optional VITE_KUSOG_CAMERA_URL can override its /camera stream.</div>
               )}
-              {result && result.width > 0 && result.height > 0 && result.detections.map((detection, index) => (
+              {sim.isTestRunning && result && result.width > 0 && result.height > 0 && result.detections.map((detection, index) => (
                 <DetectionBox key={`${detection.className}-${index}`} detection={detection} width={result.width} height={result.height} />
               ))}
-              <div className="absolute left-3 top-3 z-20 font-mono text-[10px] text-ok-400/80">YOLO26n · {health?.fps ?? '—'} FPS</div>
-              <div className="absolute right-3 top-3 z-20 font-mono text-[10px] text-slate-400/80">CONF: {(maximumConfidence * 100).toFixed(1)}%</div>
+              <div className="absolute left-3 top-3 z-20 font-mono text-[10px] text-ok-400/80">YOLO26n · {sim.isTestRunning ? health?.fps ?? '—' : '—'} FPS</div>
+              <div className="absolute right-3 top-3 z-20 font-mono text-[10px] text-slate-400/80">CONF: {sim.isTestRunning ? `${(maximumConfidence * 100).toFixed(1)}%` : '—'}</div>
             </div>
           </Panel>
         </div>
@@ -102,7 +109,7 @@ export function AiView({ sim }: { sim: Simulation }) {
             <div className="space-y-2">
               {detections.length === 0 ? (
                 <div className="rounded-lg border border-base-600/70 bg-base-900/50 px-3 py-5 text-center text-xs text-slate-500">
-                  {connected ? 'No objects detected.' : 'YOLO detections unavailable.'}
+                  {!sim.isTestRunning ? 'Start a test to enable AI assessment.' : connected ? 'No objects detected.' : 'YOLO detections unavailable.'}
                 </div>
               ) : detections.map((detection, index) => (
                 <div key={`${detection.className}-${index}`} className="flex items-center justify-between rounded-lg border border-base-600/70 bg-base-900/50 px-3 py-2.5">
@@ -117,7 +124,7 @@ export function AiView({ sim }: { sim: Simulation }) {
 
           <Panel title="Model Confidence" icon={<Cpu className="h-4 w-4" />}>
             <div className="text-center">
-              <p className={`font-mono text-4xl font-bold ${connected ? 'text-ok-400' : 'text-slate-500'}`}>{(averageConfidence * 100).toFixed(1)}%</p>
+              <p className={`font-mono text-4xl font-bold ${connected ? 'text-ok-400' : 'text-slate-500'}`}>{sim.isTestRunning ? `${(averageConfidence * 100).toFixed(1)}%` : '—'}</p>
               <div className="mt-3 h-3 overflow-hidden rounded-full bg-base-700/60">
                 <div className="h-full rounded-full bg-gradient-to-r from-ok-600 to-ok-400 transition-all duration-700" style={{ width: `${averageConfidence * 100}%` }} />
               </div>
@@ -130,7 +137,7 @@ export function AiView({ sim }: { sim: Simulation }) {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Panel title="Detection Summary" icon={<Ruler className="h-4 w-4" />}>
           <div className="text-center">
-            <p className="font-mono text-3xl font-bold text-accent-400">{detections.length}</p>
+            <p className="font-mono text-3xl font-bold text-accent-400">{sim.isTestRunning ? detections.length : '—'}</p>
             <p className="mt-1 text-xs text-slate-400">Objects detected</p>
             <p className="mt-2 text-xs text-slate-500">Live results from the Pi camera</p>
             {connected && !canAssessDamage && (
@@ -141,16 +148,16 @@ export function AiView({ sim }: { sim: Simulation }) {
 
         <Panel title="Camera Status" icon={<AlertTriangle className="h-4 w-4" />}>
           <div className="text-center">
-            <p className={`font-mono text-3xl font-bold ${health?.camera === 'online' ? 'text-ok-400' : 'text-warn-400'}`}>{health?.camera === 'online' ? 'ONLINE' : 'WAITING'}</p>
-            <p className="mt-1 text-xs text-slate-400">{health?.resolution || 'Resolution unavailable'}</p>
+            <p className={`font-mono text-3xl font-bold ${sim.isTestRunning && health?.camera === 'online' ? 'text-ok-400' : 'text-warn-400'}`}>{!sim.isTestRunning ? 'INACTIVE' : health?.camera === 'online' ? 'ONLINE' : 'WAITING'}</p>
+            <p className="mt-1 text-xs text-slate-400">{sim.isTestRunning ? health?.resolution || 'Resolution unavailable' : 'Start a test to enable AI camera analysis.'}</p>
             <p className="mt-2 text-xs text-slate-500">Raspberry Pi stream</p>
           </div>
         </Panel>
 
         <Panel title="Inference Performance" icon={<Activity className="h-4 w-4" />}>
           <div className="space-y-1.5 text-xs">
-            <div className="flex justify-between"><span className="text-slate-400">Inference</span><span className="font-mono text-slate-200">{result?.inferenceTimeMs ?? '—'} ms</span></div>
-            <div className="flex justify-between"><span className="text-slate-400">FPS</span><span className="font-mono text-slate-200">{health?.fps ?? '—'}</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">Inference</span><span className="font-mono text-slate-200">{sim.isTestRunning ? result?.inferenceTimeMs ?? '—' : '—'} ms</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">FPS</span><span className="font-mono text-slate-200">{sim.isTestRunning ? health?.fps ?? '—' : '—'}</span></div>
             <div className="flex justify-between"><span className="text-slate-400">Objects</span><span className="font-mono text-slate-200">{detections.length}</span></div>
             <div className="flex justify-between"><span className="text-slate-400">Model</span><span className="font-mono text-slate-200">{health?.model || 'YOLO26n'}</span></div>
           </div>

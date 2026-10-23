@@ -16,8 +16,8 @@ import adafruit_dht
 import board
 
 
-SUPABASE_URL = os.getenv("VITE_SUPABASE_URL", "").strip().rstrip("/")
-SUPABASE_ANON_KEY = os.getenv("VITE_SUPABASE_ANON_KEY", "").strip()
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
 try:
     UPLOAD_INTERVAL_SECONDS = int(os.getenv("DHT11_UPLOAD_INTERVAL_SECONDS", "10"))
 except ValueError as error:
@@ -28,8 +28,8 @@ def validate_config() -> None:
     missing = [
         name
         for name, value in (
-            ("VITE_SUPABASE_URL", SUPABASE_URL),
-            ("VITE_SUPABASE_ANON_KEY", SUPABASE_ANON_KEY),
+            ("SUPABASE_URL", SUPABASE_URL),
+            ("SUPABASE_SERVICE_ROLE_KEY", SUPABASE_SERVICE_ROLE_KEY),
         )
         if not value
     ]
@@ -66,14 +66,36 @@ def read_sensor(sensor: adafruit_dht.DHT11) -> dict[str, float]:
     }
 
 
-def upload_reading(reading: dict[str, float]) -> None:
-    body = json.dumps(reading, allow_nan=False).encode("utf-8")
+def get_active_test_id() -> str | None:
     request = Request(
-        f"{SUPABASE_URL}/rest/v1/dht11_readings",
+        f"{SUPABASE_URL}/rest/v1/test_records?select=id&status=eq.RUNNING&limit=2",
+        headers={
+            "apikey": SUPABASE_SERVICE_ROLE_KEY,
+            "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        },
+        method="GET",
+    )
+    with urlopen(request, timeout=10) as response:
+        records = json.loads(response.read().decode("utf-8"))
+    if not records:
+        return None
+    if len(records) != 1:
+        raise RuntimeError("More than one test session is marked RUNNING.")
+    return str(records[0]["id"])
+
+
+def upload_reading(test_record_id: str, reading: dict[str, float]) -> None:
+    body = json.dumps({
+        "p_test_record_id": test_record_id,
+        "p_temperature_c": reading["temperature_c"],
+        "p_humidity_percent": reading["humidity_percent"],
+    }, allow_nan=False).encode("utf-8")
+    request = Request(
+        f"{SUPABASE_URL}/rest/v1/rpc/kusog_insert_dht11_reading",
         data=body,
         headers={
-            "apikey": SUPABASE_ANON_KEY,
-            "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+            "apikey": SUPABASE_SERVICE_ROLE_KEY,
+            "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
             "Content-Type": "application/json",
             "Prefer": "return=minimal",
         },
@@ -99,9 +121,9 @@ def log_failure(message: str, error: Exception) -> None:
     )
 
 
-def upload_once(sensor: adafruit_dht.DHT11) -> None:
+def upload_once(sensor: adafruit_dht.DHT11, test_record_id: str) -> None:
     reading = read_sensor(sensor)
-    upload_reading(reading)
+    upload_reading(test_record_id, reading)
     print(
         f"[{datetime.now(timezone.utc).isoformat()}] upload OK: "
         f"temperature={reading['temperature_c']:.1f} C, "
@@ -123,7 +145,14 @@ def run(once: bool = False) -> None:
         while True:
             started = time.monotonic()
             try:
-                upload_once(sensor)
+                test_record_id = get_active_test_id()
+                if test_record_id:
+                    upload_once(sensor, test_record_id)
+                elif once:
+                    print("No active test session; no sensor reading or upload performed.", flush=True)
+                    return
+                else:
+                    print(f"[{datetime.now(timezone.utc).isoformat()}] no active test; skipping DHT11 read.", flush=True)
             except (HTTPError, URLError, TimeoutError) as error:
                 if once:
                     raise

@@ -26,7 +26,6 @@ type DashboardViewProps = {
 export function DashboardView({ sim, rainSensor, sensorError, sensorLoading, onNavigate }: DashboardViewProps) {
   const system = useSystemStatus();
   const rainValue = rainSensor.connected ? rainSensor.rainLevel : '—';
-  const currentTestState = sim.testStatus;
   const testStatusColor = sim.isTestRunning
     ? 'bg-ok-500/15 text-ok-400'
     : sim.testStatus === 'COMPLETED'
@@ -53,7 +52,7 @@ export function DashboardView({ sim, rainSensor, sensorError, sensorLoading, onN
                 <Activity className="h-4 w-4 text-accent-300" /> Chamber Status
               </div>
               <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${testStatusColor}`}>
-                {currentTestState}
+                {sim.isTestRunning ? 'TEST RUNNING' : sim.testRecord ? 'TEST STOPPED' : 'WAITING TO START'}
               </span>
             </div>
             <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 text-xs">
@@ -66,27 +65,27 @@ export function DashboardView({ sim, rainSensor, sensorError, sensorLoading, onN
           <section className="min-w-0 rounded-md border border-sky-300/15 bg-base-900/90 p-3 shadow-panel backdrop-blur-sm">
             <div className="mb-2 flex items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-slate-100">Current Test</h2>
-              <span className={`text-[10px] font-bold ${sim.isTestRunning ? 'text-ok-400' : sim.testStatus === 'COMPLETED' ? 'text-sky-300' : sim.testStatus === 'FAILED' || sim.testStatus === 'SAVE PENDING' ? 'text-danger-400' : 'text-slate-400'}`}>{currentTestState}</span>
+              <span className={`text-[10px] font-bold ${sim.isTestRunning ? 'text-ok-400' : sim.testStatus === 'COMPLETED' ? 'text-sky-300' : sim.testStatus === 'FAILED' || sim.testStatus === 'SAVE PENDING' ? 'text-danger-400' : 'text-slate-400'}`}>{sim.isTestRunning ? 'TEST RUNNING' : sim.testRecord ? 'TEST STOPPED' : 'WAITING TO START'}</span>
             </div>
             <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
               <TestValue label="Test ID" value={sim.testRecord?.test_id ?? (sim.isTestRunning ? sim.testId : 'No test recorded')} />
               <TestValue label="Scenario" value={sim.testRecord?.scenario ?? '—'} />
               <TestValue label="Started" value={formatTimestamp(sim.testRecord?.start_time)} />
               <TestValue label="Ended" value={formatTimestamp(sim.testRecord?.end_time)} />
-              <TestValue label="Elapsed" value={fmtElapsed(sim.elapsed)} />
+              <TestValue label="Elapsed" value={sim.testRecord || sim.isTestRunning ? fmtElapsed(sim.elapsed) : '—'} />
               <TestValue label="Result" value={sim.testResult} />
-              <TestValue label="Wind Speed" value={sim.testRecord?.wind_speed === null || sim.testRecord?.wind_speed === undefined ? '—' : `${sim.testRecord.wind_speed} km/h`} />
-              <TestValue label="Uplift Force" value={sim.testRecord?.current_force === null || sim.testRecord?.current_force === undefined ? '—' : `${sim.testRecord.current_force} N`} />
+              <TestValue label={sim.isTestRunning ? 'Wind Speed' : 'Final Wind Speed'} value={sim.testRecord?.wind_speed === null || sim.testRecord?.wind_speed === undefined ? '—' : `${sim.testRecord.wind_speed} km/h`} />
+              <TestValue label={sim.isTestRunning ? 'Uplift Force' : 'Final Uplift Force'} value={sim.testRecord?.current_force === null || sim.testRecord?.current_force === undefined ? '—' : `${sim.testRecord.current_force} N`} />
             </dl>
           </section>
         </div>
       </div>
 
       <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
-        <Metric icon={Wind} label="Wind speed" value={sim.windSensorConnected ? `${(sim.windSpeed * 3.6).toFixed(1)} km/h` : 'Unavailable'} detail={sim.windSensorConnected ? 'Live sensor' : 'Wind sensor offline'} state={sim.windSensorConnected ? 'live' : 'offline'} />
-        <Metric icon={Compass} label="Wind direction" value={sim.windSensorConnected ? `${Math.round(sim.windDir)}°` : 'Unavailable'} detail={sim.windSensorConnected ? 'Live sensor' : 'Wind sensor offline'} state={sim.windSensorConnected ? 'live' : 'offline'} />
-        <Metric icon={Droplets} label="Rain level" value={rainValue} detail={sensorLoading ? 'Loading from Supabase' : rainSensor.connected ? 'Live sensor' : sensorError ? 'Reading error' : rainSensor.offline ? 'Sensor offline' : 'Waiting for data'} state={rainSensor.connected ? 'live' : 'offline'} />
-        <Metric icon={Weight} label="Uplift force" value={sim.loadCellConnected ? `${sim.currentForce.toFixed(1)} N` : 'Unavailable'} detail={sim.loadCellConnected ? 'Live load cell' : 'Load cell offline'} state={sim.loadCellConnected ? 'live' : 'offline'} />
+        <Metric icon={Wind} label="Wind speed" value={sim.windSensorConnected ? `${(sim.windSpeed * 3.6).toFixed(1)} km/h` : '—'} detail={!sim.isTestRunning ? 'Waiting to start' : sim.windSensorConnected ? 'Live sensor' : 'Wind sensor offline'} state={sim.windSensorConnected ? 'live' : 'offline'} />
+        <Metric icon={Compass} label="Wind direction" value={sim.windSensorConnected ? `${Math.round(sim.windDir)}°` : '—'} detail={!sim.isTestRunning ? 'Waiting to start' : sim.windSensorConnected ? 'Live sensor' : 'Wind sensor offline'} state={sim.windSensorConnected ? 'live' : 'offline'} />
+        <Metric icon={Droplets} label="Rain level" value={rainSensor.connected ? rainValue : '—'} detail={!sim.isTestRunning ? 'Waiting to start' : sensorLoading ? 'Loading from Supabase' : rainSensor.connected ? 'Live sensor' : sensorError ? 'Reading error' : rainSensor.offline ? 'Sensor offline' : 'Waiting for data'} state={rainSensor.connected ? 'live' : 'offline'} />
+        <Metric icon={Weight} label="Uplift force" value={sim.loadCellConnected ? `${sim.currentForce.toFixed(1)} N` : '—'} detail={!sim.isTestRunning ? 'Waiting to start' : sim.loadCellConnected ? 'Live load cell' : 'Load cell offline'} state={sim.loadCellConnected ? 'live' : 'offline'} />
       </div>
 
       <div className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-12">

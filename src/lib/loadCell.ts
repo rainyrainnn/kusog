@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useTestSession } from '@/hooks/useTestSession';
 
 export type LoadCellData = {
   connected: boolean;
@@ -36,11 +37,18 @@ function isRecent(timestamp: string | null): boolean {
 }
 
 export function useLoadCell() {
+  const { ready, recordId } = useTestSession();
   const [data, setData] = useState<LoadCellData>(EMPTY_READING);
 
   useEffect(() => {
+    if (!ready || !recordId) {
+      setData(EMPTY_READING);
+      return;
+    }
+
     let active = true;
     let polling = false;
+    setData(EMPTY_READING);
 
     const poll = async () => {
       if (polling) return;
@@ -49,6 +57,7 @@ export function useLoadCell() {
         const { data: row, error } = await supabase
           .from('load_cell_readings')
           .select('id, raw_value, weight_grams, weight_kg, uplift_force_n, recorded_at')
+          .eq('test_record_id', recordId)
           .order('recorded_at', { ascending: false })
           .order('id', { ascending: false })
           .limit(1)
@@ -92,7 +101,7 @@ export function useLoadCell() {
       active = false;
       window.clearInterval(interval);
     };
-  }, []);
+  }, [ready, recordId]);
 
   return data;
 }

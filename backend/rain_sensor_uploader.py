@@ -95,8 +95,8 @@ def fetch_reading() -> dict[str, Any]:
     }
 
 
-def upload_reading(reading: dict[str, Any]) -> None:
-    query = urlencode({"select": "id", "status": "eq.RUNNING", "order": "start_time.desc", "limit": "1"})
+def get_active_test_id() -> str | None:
+    query = urlencode({"select": "id", "status": "eq.RUNNING", "limit": "2"})
     lookup = Request(
         f"{SUPABASE_URL}/rest/v1/test_records?{query}",
         headers={
@@ -107,10 +107,23 @@ def upload_reading(reading: dict[str, Any]) -> None:
     )
     with urlopen(lookup, timeout=10) as response:
         active_tests = json.loads(response.read().decode("utf-8"))
-    reading["test_record_id"] = active_tests[0]["id"] if active_tests else None
-    body = json.dumps(reading).encode("utf-8")
+    if not active_tests:
+        return None
+    if len(active_tests) != 1:
+        raise RuntimeError("More than one test session is marked RUNNING.")
+    return str(active_tests[0]["id"])
+
+
+def upload_reading(test_record_id: str, reading: dict[str, Any]) -> None:
+    body = json.dumps({
+        "p_test_record_id": test_record_id,
+        "p_rain_level": reading["rain_level"],
+        "p_rain_state": reading["rain_state"],
+        "p_rain_24h": reading["rain_24h"],
+        "p_battery_percentage": reading["battery_percentage"],
+    }).encode("utf-8")
     request = Request(
-        f"{SUPABASE_URL}/rest/v1/rain_sensor_readings",
+        f"{SUPABASE_URL}/rest/v1/rpc/kusog_insert_rain_sensor_reading",
         data=body,
         headers={
             "apikey": SUPABASE_SERVICE_ROLE_KEY,
@@ -124,9 +137,9 @@ def upload_reading(reading: dict[str, Any]) -> None:
         response.read()
 
 
-def upload_once() -> None:
+def upload_once(test_record_id: str) -> None:
     reading = fetch_reading()
-    upload_reading(reading)
+    upload_reading(test_record_id, reading)
     print(
         f"[{datetime.now(timezone.utc).isoformat()}] upload OK: "
         f"state={reading['rain_state']}, level={reading['rain_level']}, "
@@ -152,7 +165,15 @@ def run() -> None:
 
     while True:
         try:
-            upload_once()
+            test_record_id = get_active_test_id()
+            if test_record_id:
+                upload_once(test_record_id)
+            else:
+                print(
+                    f"[{datetime.now(timezone.utc).isoformat()}] "
+                    "no active test; skipping rain sensor read.",
+                    flush=True,
+                )
         except (HTTPError, URLError, TimeoutError, RuntimeError, OSError) as error:
             print(
                 f"[{datetime.now(timezone.utc).isoformat()}] upload FAILED: "
@@ -173,7 +194,11 @@ if __name__ == "__main__":
     try:
         if args.once:
             required_config()
-            upload_once()
+            active_test_id = get_active_test_id()
+            if active_test_id:
+                upload_once(active_test_id)
+            else:
+                print("No active test session; no sensor reading or upload performed.", flush=True)
         else:
             run()
     except KeyboardInterrupt:

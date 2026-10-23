@@ -11,6 +11,13 @@ export function AiAssessment({ sim }: { sim: Simulation }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!sim.isTestRunning) {
+      setHealth(null);
+      setResult(null);
+      setError(null);
+      return;
+    }
+
     if (!isEdgeConfigured) {
       setError('Set VITE_KUSOG_EDGE_URL in .env to connect the Raspberry Pi edge service.');
       return;
@@ -41,10 +48,10 @@ export function AiAssessment({ sim }: { sim: Simulation }) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [recordYoloAssessment]);
+  }, [recordYoloAssessment, sim.isTestRunning]);
 
-  const detections = result?.detections ?? [];
-  const ready = health?.status === 'ok'
+  const detections = sim.isTestRunning ? result?.detections ?? [] : [];
+  const ready = sim.isTestRunning && health?.status === 'ok'
     && (health.modelReady ?? Boolean(health.model))
     && health.camera === 'online';
   const canAssessDamage = hasDamageClasses(health?.classes);
@@ -68,7 +75,7 @@ export function AiAssessment({ sim }: { sim: Simulation }) {
           </div>
           <div className="rounded-lg border border-base-600/70 bg-base-900/50 p-3">
             <p className="text-[10px] uppercase tracking-wider text-slate-600">Status</p>
-            <p className={`mt-1 text-sm font-bold ${ready ? 'text-ok-400' : 'text-warn-400'}`}>{ready ? 'READY' : 'WAITING FOR PI'}</p>
+            <p className={`mt-1 text-sm font-bold ${ready ? 'text-ok-400' : 'text-warn-400'}`}>{ready ? 'READY' : sim.isTestRunning ? 'WAITING FOR PI' : 'WAITING TO START'}</p>
           </div>
         </div>
 
@@ -96,8 +103,8 @@ export function AiAssessment({ sim }: { sim: Simulation }) {
             ) : (
               <div>
                 <AlertCircle className="mx-auto h-6 w-6 text-warn-400" />
-                <p className="mt-2 text-xs text-slate-400">YOLO results unavailable.</p>
-                <p className="mt-1 text-[10px] text-slate-600">{error || 'Connect the edge service and camera to populate real detections.'}</p>
+                <p className="mt-2 text-xs text-slate-400">{sim.isTestRunning ? 'YOLO results unavailable.' : 'AI assessment is inactive.'}</p>
+                <p className="mt-1 text-[10px] text-slate-600">{sim.isTestRunning ? error || 'Connect the edge service and camera to populate real detections.' : 'Start a test to enable live analysis.'}</p>
               </div>
             )}
           </div>
@@ -106,12 +113,12 @@ export function AiAssessment({ sim }: { sim: Simulation }) {
         <div className="rounded-lg border border-base-600/70 bg-base-900/50 p-3">
           <div className="flex items-center justify-between">
             <span className="text-xs text-slate-400">Confidence</span>
-            <span className={`font-mono text-lg font-bold ${ready ? 'text-ok-400' : 'text-slate-500'}`}>{(averageConfidence * 100).toFixed(1)}%</span>
+            <span className={`font-mono text-lg font-bold ${ready ? 'text-ok-400' : 'text-slate-500'}`}>{ready ? `${(averageConfidence * 100).toFixed(1)}%` : '—'}</span>
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-base-700/60">
             <div className="h-full rounded-full bg-gradient-to-r from-ok-600 to-ok-400 transition-all duration-700" style={{ width: `${averageConfidence * 100}%` }} />
           </div>
-          <p className="mt-2 text-center text-[10px] text-slate-600">{result?.inferenceTimeMs ?? '—'} ms · {health?.resolution || '—'} · {health?.fps ?? '—'} FPS</p>
+          <p className="mt-2 text-center text-[10px] text-slate-600">{sim.isTestRunning ? result?.inferenceTimeMs ?? '—' : '—'} ms · {sim.isTestRunning ? health?.resolution || '—' : '—'} · {sim.isTestRunning ? health?.fps ?? '—' : '—'} FPS</p>
           {ready && !canAssessDamage && (
             <p className="mt-2 text-center text-[10px] text-warn-300">
               This model has no damage-related classes. Test result will be Not assessed, not Passed.

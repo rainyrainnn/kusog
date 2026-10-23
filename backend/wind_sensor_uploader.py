@@ -108,8 +108,8 @@ def read_wind(client: ModbusSerialClient, config: dict[str, Any]) -> dict[str, f
     return {"wind_speed": speed, "wind_direction": direction}
 
 
-def upload_reading(reading: dict[str, float]) -> None:
-    query = urlencode({"select": "id", "status": "eq.RUNNING", "order": "start_time.desc", "limit": "1"})
+def get_active_test_id() -> str | None:
+    query = urlencode({"select": "id", "status": "eq.RUNNING", "limit": "2"})
     lookup = Request(
         f"{SUPABASE_URL}/rest/v1/test_records?{query}",
         headers={
@@ -120,10 +120,21 @@ def upload_reading(reading: dict[str, float]) -> None:
     )
     with urlopen(lookup, timeout=10) as response:
         active_tests = json.loads(response.read().decode("utf-8"))
-    reading["test_record_id"] = active_tests[0]["id"] if active_tests else None
-    body = json.dumps(reading).encode("utf-8")
+    if not active_tests:
+        return None
+    if len(active_tests) != 1:
+        raise RuntimeError("More than one test session is marked RUNNING.")
+    return str(active_tests[0]["id"])
+
+
+def upload_reading(test_record_id: str, reading: dict[str, float]) -> None:
+    body = json.dumps({
+        "p_test_record_id": test_record_id,
+        "p_wind_speed": reading["wind_speed"],
+        "p_wind_direction": reading["wind_direction"],
+    }).encode("utf-8")
     request = Request(
-        f"{SUPABASE_URL}/rest/v1/wind_sensor_readings",
+        f"{SUPABASE_URL}/rest/v1/rpc/kusog_insert_wind_sensor_reading",
         data=body,
         headers={
             "apikey": SUPABASE_SERVICE_ROLE_KEY,
@@ -156,13 +167,22 @@ def run() -> None:
     while True:
         started = time.monotonic()
         try:
+            test_record_id = get_active_test_id()
+            if not test_record_id:
+                print("No active test session; skipping wind sensor read.")
+                if client is not None:
+                    client.close()
+                    client = None
+                time.sleep(max(0.0, UPLOAD_INTERVAL - (time.monotonic() - started)))
+                continue
+
             if client is None:
                 client = create_client(config)
                 if not client.connect():
                     raise ConnectionError(f"Could not open RS485 port {config['port']}.")
 
             reading = read_wind(client, config)
-            upload_reading(reading)
+            upload_reading(test_record_id, reading)
             print(
                 f"[{datetime.now(timezone.utc).isoformat()}] upload OK: "
                 f"speed={reading['wind_speed']:.2f} m/s, "

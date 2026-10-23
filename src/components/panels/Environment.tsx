@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { Thermometer, Droplets, Gauge } from 'lucide-react';
 import { Panel, StatusDot } from '../Panel';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { useTestSession } from '@/hooks/useTestSession';
 
 export function Environment() {
+  const { ready, recordId } = useTestSession();
   const [reading, setReading] = useState<{
     temperature: number;
     humidity: number;
@@ -13,8 +15,18 @@ export function Environment() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!ready || !recordId) {
+      setReading(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     let active = true;
     let polling = false;
+    setReading(null);
+    setLoading(true);
+    setError(null);
 
     const fetchLatest = async () => {
       if (polling) return;
@@ -28,6 +40,7 @@ export function Environment() {
         const { data, error: queryError } = await supabase
           .from('dht11_readings')
           .select('temperature_c, humidity_percent, recorded_at')
+          .eq('test_record_id', recordId)
           .order('recorded_at', { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -78,7 +91,7 @@ export function Environment() {
       active = false;
       window.clearInterval(interval);
     };
-  }, []);
+  }, [ready, recordId]);
 
   const readingOnline = Boolean(
     reading
@@ -91,7 +104,7 @@ export function Environment() {
       ? 'DATABASE ERROR'
       : reading
         ? readingOnline ? 'ONLINE' : 'OFFLINE'
-        : 'NO DATA';
+        : ready ? 'NO DATA' : 'WAITING TO START';
 
   return (
     <Panel
@@ -139,7 +152,7 @@ export function Environment() {
             </div>
           ) : (
             <p className="text-center text-xs text-warn-300">
-              No DHT11 readings found. The sensor may be offline or has not submitted data yet.
+              {ready ? 'No DHT11 readings for this test yet. The sensor may be offline.' : 'Start a test to enable DHT11 readings.'}
             </p>
           )}
         </div>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useTestSession } from '@/hooks/useTestSession';
 
 export type WindPoint = { t: number; value: number };
 
@@ -37,13 +38,22 @@ function numericOrNull(value: unknown): number | null {
 }
 
 export function useWindSensor(): WindSensorData {
+  const { ready, recordId } = useTestSession();
   const [data, setData] = useState<WindSensorData>(EMPTY_SENSOR);
   const latestId = useRef<number | string | null>(null);
   const sampleNumber = useRef(0);
 
   useEffect(() => {
+    if (!ready || !recordId) {
+      latestId.current = null;
+      sampleNumber.current = 0;
+      setData(EMPTY_SENSOR);
+      return;
+    }
+
     let active = true;
     let polling = false;
+    setData(EMPTY_SENSOR);
 
     const poll = async () => {
       if (polling) return;
@@ -52,6 +62,7 @@ export function useWindSensor(): WindSensorData {
         const { data: row, error } = await supabase
           .from('wind_sensor_readings')
           .select('id, wind_speed, wind_direction, recorded_at')
+          .eq('test_record_id', recordId)
           .order('recorded_at', { ascending: false })
           .order('id', { ascending: false })
           .limit(1)
@@ -107,7 +118,7 @@ export function useWindSensor(): WindSensorData {
       active = false;
       window.clearInterval(interval);
     };
-  }, []);
+  }, [ready, recordId]);
 
   return data;
 }

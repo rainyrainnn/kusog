@@ -9,9 +9,10 @@ import { windLabel } from '@/hooks/useSimulation';
 import type { RainSensorData } from '@/lib/rainSensor';
 
 export function ControlsView({ sim, rainSensor, sensorError, sensorLoading }: { sim: Simulation; rainSensor: RainSensorData; sensorError: string | null; sensorLoading: boolean }) {
+  const waiting = !sim.isTestRunning;
   return (
     <div className="space-y-4">
-      <PageHeader title="Sensor Monitoring" subtitle="Live readings from connected rain and wind sensors; wind is monitored, not controlled." icon={<SlidersHorizontal className="h-5 w-5" />} />
+      <PageHeader title="Sensor Monitoring" subtitle={waiting ? 'Sensors are inactive until a simulation starts.' : 'Live readings from connected rain and wind sensors; wind is monitored, not controlled.'} icon={<SlidersHorizontal className="h-5 w-5" />} />
 
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-12 md:col-span-6 xl:col-span-4">
@@ -29,13 +30,13 @@ export function ControlsView({ sim, rainSensor, sensorError, sensorLoading }: { 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <SummaryCard
             label="Rain Status"
-            value={sensorLoading ? 'LOADING' : sensorError ? 'ERROR' : !rainSensor.connected ? rainSensor.offline ? 'OFFLINE' : 'WAITING' : rainSensor.rainState === 'rain' ? 'RAIN' : rainSensor.rainState === 'normal' ? 'NO RAIN' : 'UNKNOWN'}
+            value={waiting ? 'WAITING TO START' : sensorLoading ? 'LOADING' : sensorError ? 'ERROR' : !rainSensor.connected ? rainSensor.offline ? 'OFFLINE' : 'WAITING' : rainSensor.rainState === 'rain' ? 'RAIN' : rainSensor.rainState === 'normal' ? 'NO RAIN' : 'UNKNOWN'}
           />
-          <SummaryCard label="Rain Level" value={rainSensor.connected ? rainSensor.rainLevel : 'Unavailable'} />
-          <SummaryCard label="Wind Speed" value={sim.windSensorConnected ? `${sim.windSpeed.toFixed(1)} m/s` : 'Unavailable'} />
-          <SummaryCard label="Wind Class" value={sim.windSensorConnected ? windLabel(sim.windSpeed * 3.6) : 'Unavailable'} />
-          <SummaryCard label="Wind Direction" value={sim.windSensorConnected ? `${sim.windDir.toFixed(1)}°` : 'Unavailable'} />
-          <SummaryCard label="Simulation Status" value={sim.testStatus} accent={sim.isTestRunning} />
+          <SummaryCard label="Rain Level" value={rainSensor.connected ? rainSensor.rainLevel : '—'} />
+          <SummaryCard label="Wind Speed" value={sim.windSensorConnected ? `${sim.windSpeed.toFixed(1)} m/s` : '—'} />
+          <SummaryCard label="Wind Class" value={sim.windSensorConnected ? windLabel(sim.windSpeed * 3.6) : '—'} />
+          <SummaryCard label="Wind Direction" value={sim.windSensorConnected ? `${sim.windDir.toFixed(1)}°` : '—'} />
+          <SummaryCard label="Simulation Status" value={waiting ? 'WAITING TO START' : sim.testStatus} accent={sim.isTestRunning} />
         </div>
       </Panel>
     </div>
