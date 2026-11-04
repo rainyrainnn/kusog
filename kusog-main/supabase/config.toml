@@ -1,0 +1,2 @@
+[functions.bmp280-upload]
+verify_jwt = false

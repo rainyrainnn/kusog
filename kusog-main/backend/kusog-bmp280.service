@@ -1,0 +1,24 @@
+[Unit]
+Description=KUSOG BMP280 sensor uploader
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=chamber-pi
+SupplementaryGroups=i2c
+WorkingDirectory=/home/chamber-pi/kusog
+EnvironmentFile=/home/chamber-pi/.config/kusog/bmp280.env
+RuntimeDirectory=kusog-bmp280
+RuntimeDirectoryMode=0750
+ExecStart=/usr/bin/flock --nonblock --no-fork /run/kusog-bmp280/uploader.lock /home/chamber-pi/yolo-env/bin/python /home/chamber-pi/kusog/backend/bmp280_supabase_uploader.py
+Restart=always
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target
