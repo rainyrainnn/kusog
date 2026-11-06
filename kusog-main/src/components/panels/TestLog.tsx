@@ -27,21 +27,21 @@ export function TestLog({ sim }: { sim: Simulation }) {
       icon={<ScrollText className="h-4 w-4" />}
       right={<span className="font-mono text-[10px] text-slate-500">{sim.logs.length} entries</span>}
       className="h-full"
-      bodyClassName="p-0"
+      bodyClassName="min-h-0 p-0"
     >
-      <div className="flex h-full flex-col">
-        <div className="flex-1 overflow-y-auto px-3 py-2">
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
           <ul className="space-y-1.5">
             {logs.slice(0, 12).map((log) => {
               const { icon: Icon, color } = LEVEL_ICON[log.level];
               return (
                 <li
                   key={log.id}
-                  className="flex items-start gap-2 rounded-md px-2 py-1.5 text-xs transition hover:bg-base-700/40"
+                  className="flex min-w-0 items-start gap-2 rounded-md px-2 py-1.5 text-xs transition hover:bg-base-700/40"
                 >
                   <Icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${color}`} />
                   <span className="shrink-0 font-mono text-slate-500">{log.time}</span>
-                  <span className="text-slate-300">{log.message}</span>
+                  <span className="min-w-0 flex-1 break-words text-slate-300">{log.message}</span>
                 </li>
               );
             })}
@@ -98,11 +98,11 @@ export function TestLog({ sim }: { sim: Simulation }) {
                     return (
                       <li
                         key={log.id}
-                        className="flex items-start gap-2 rounded-md px-2 py-1.5 text-xs transition hover:bg-base-700/40"
+                        className="flex min-w-0 items-start gap-2 rounded-md px-2 py-1.5 text-xs transition hover:bg-base-700/40"
                       >
                         <Icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${color}`} />
                         <span className="shrink-0 font-mono text-slate-500">{log.time}</span>
-                        <span className="text-slate-300">{log.message}</span>
+                        <span className="min-w-0 flex-1 break-words text-slate-300">{log.message}</span>
                       </li>
                     );
                   })
