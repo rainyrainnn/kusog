@@ -214,11 +214,11 @@ export function GraphsView({ sim, wind, loadCell, rain }: {
         ) : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <HistoryChart title="Wind speed" data={savedSeries.windSpeed} color="#00C8FF" unit="km/h" icon={<Wind className="h-4 w-4" />} />
-            <HistoryChart title="Wind direction" data={savedSeries.windDirection} color="#A78BFA" unit="°" direction icon={<Compass className="h-4 w-4" />} />
+            <HistoryChart title="Wind direction" data={savedSeries.windDirection} color="#00D6A0" unit="°" direction icon={<Compass className="h-4 w-4" />} />
             <HistoryChart title="Rainfall (24 h)" data={savedSeries.rainfall} color="#38BDF8" unit="API unit" icon={<CloudRain className="h-4 w-4" />} />
             <HistoryChart title="BMP280 temperature" data={savedSeries.temperature} color="#F59E0B" unit="°C" icon={<Thermometer className="h-4 w-4" />} />
             <HistoryChart title="BMP280 atmospheric pressure" data={savedSeries.pressure} color="#00D6A0" unit="hPa" icon={<Gauge className="h-4 w-4" />} />
-            <HistoryChart title="Uplift force" data={savedSeries.uplift} color="#22C55E" unit="N" icon={<Weight className="h-4 w-4" />} />
+            <HistoryChart title="Uplift force" data={savedSeries.uplift} color="#00D6A0" unit="N" icon={<Weight className="h-4 w-4" />} />
           </div>
         )}
       </section>

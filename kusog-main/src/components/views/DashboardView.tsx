@@ -425,8 +425,8 @@ export function DashboardView({ sim, rainSensor, sensorError, sensorLoading, onN
       </div>
 
       <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-12">
-        <div className="min-w-0 xl:col-span-7"><TestLog sim={sim} /></div>
-        <div className="min-w-0 xl:col-span-5"><ReportGeneration /></div>
+        <div className="h-[340px] min-w-0 sm:h-[360px] xl:col-span-7"><TestLog sim={sim} /></div>
+        <div className="h-[340px] min-w-0 sm:h-[360px] xl:col-span-5"><ReportGeneration /></div>
       </div>
     </div>
   );

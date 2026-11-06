@@ -40,10 +40,10 @@ export function Graph({ data, color, yLabel, xLabel, yMax, yMin = 0, fill = true
 
         {/* grid */}
         {[0.25, 0.5, 0.75].map((t) => (
-          <line key={t} x1="0" y1={h * t} x2={w} y2={h * t} stroke="#1c2942" strokeWidth="0.3" />
+          <line key={t} x1="0" y1={h * t} x2={w} y2={h * t} stroke="#26364D" strokeWidth="0.3" />
         ))}
         {[0.25, 0.5, 0.75].map((t) => (
-          <line key={`v${t}`} x1={w * t} y1="0" x2={w * t} y2={h} stroke="#1c2942" strokeWidth="0.3" />
+          <line key={`v${t}`} x1={w * t} y1="0" x2={w * t} y2={h} stroke="#26364D" strokeWidth="0.3" />
         ))}
 
         {fill && <path d={areaPath} fill={`url(#fill-${color})`} />}
@@ -75,8 +75,8 @@ export function Graph({ data, color, yLabel, xLabel, yMax, yMin = 0, fill = true
 
 function colorVar(c: string): string {
   const map: Record<string, string> = {
-    accent: '#38bdf8',
-    ok: '#4ade80',
+    accent: '#00C8FF',
+    ok: '#00D6A0',
     warn: '#fbbf24',
     danger: '#f87171',
     violet: '#a78bfa',

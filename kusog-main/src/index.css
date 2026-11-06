@@ -16,7 +16,7 @@
   --text-secondary: #94a3b8;
   --text-muted: #77869b;
   --border-subtle: #26364d;
-  --status-success: #22c55e;
+  --status-success: #00d6a0;
   --status-warning: #f59e0b;
   --status-danger: #ef4444;
   --status-info: #38bdf8;
@@ -43,10 +43,20 @@ body {
 }
 
 .dashboard-shell {
+  position: relative;
   isolation: isolate;
   background-color: var(--app-background);
-  background-image: none;
-  background-attachment: scroll;
+}
+
+.dashboard-shell::before {
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  background:
+    linear-gradient(rgba(11, 18, 32, 0.52), rgba(11, 18, 32, 0.52)),
+    url('./assets/Futuristic Satellite Typhoon Over the Philippines.png') center / cover no-repeat;
+  content: '';
+  pointer-events: none;
 }
 
 .dashboard-shell > * {
@@ -54,15 +64,15 @@ body {
 }
 
 .dashboard-main {
-  background: var(--app-background);
+  background: transparent;
 }
 
 .storm-header {
-  background: var(--sidebar-background);
+  background: rgba(15, 25, 43, 0.94);
 }
 
 .storm-sidebar {
-  background: var(--sidebar-background);
+  background: rgba(15, 25, 43, 0.94);
 }
 
 button,

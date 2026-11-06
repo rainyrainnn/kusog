@@ -12,7 +12,7 @@ type PanelProps = {
 export function Panel({ title, icon, right, children, className = '', bodyClassName = '' }: PanelProps) {
   return (
     <section
-      className={`flex min-w-0 flex-col rounded-xl border border-sky-300/15 bg-base-900/90 shadow-panel backdrop-blur-sm transition-[border-color,box-shadow] duration-200 hover:border-sky-300/25 hover:shadow-panel ${className}`}
+      className={`flex min-w-0 flex-col rounded-xl border border-sky-300/15 bg-base-900/85 shadow-panel backdrop-blur-sm transition-[border-color,box-shadow] duration-200 hover:border-sky-300/25 hover:shadow-panel ${className}`}
     >
       <header className="flex min-w-0 items-center justify-between gap-2 border-b border-sky-300/10 px-4 py-3">
         <div className="flex items-center gap-2">

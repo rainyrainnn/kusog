@@ -82,9 +82,14 @@ export function ReportGeneration() {
   };
 
   return (
-    <Panel title="Generate Test Report" icon={<FileText className="h-4 w-4" />} className="h-full">
-      <div className="flex h-full flex-col gap-4">
-        <div>
+    <Panel
+      title="Generate Test Report"
+      icon={<FileText className="h-4 w-4" />}
+      className="h-full min-h-0"
+      bodyClassName="min-h-0 p-3"
+    >
+      <div className="flex h-full min-h-0 flex-col gap-3">
+        <div className="shrink-0">
           <label htmlFor="saved-test-report" className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-slate-500">
             Saved test record
           </label>
@@ -134,8 +139,8 @@ export function ReportGeneration() {
             </button>
           </div>
         ) : (
-          <>
-            <div className="grid flex-1 grid-cols-2 gap-x-3 gap-y-3 rounded-lg border border-base-600/70 bg-base-900/40 p-3 text-xs">
+          <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-base-600/70 bg-base-900/40 p-3">
+            <div className="grid grid-cols-2 content-start gap-x-3 gap-y-2 text-xs">
               <PreviewItem label="Test ID" value={currentRecord.test_id || '--'} />
               <PreviewItem label="Operator ID" value={currentRecord.operator_id || '--'} />
               <PreviewItem label="Scenario" value={getScenarioLabel(currentRecord.scenario, currentRecord.test_mode)} />
@@ -154,18 +159,18 @@ export function ReportGeneration() {
               <PreviewItem label="Saved AI confidence" value={currentRecord.ai_confidence === null ? '--' : `${currentRecord.ai_confidence}%`} />
               <PreviewItem label="Structural assessment" value={getStructuralDamageLabel(currentRecord.structural_damage_status, currentRecord.ai_overall)} />
             </div>
-            <p className="text-[10px] leading-relaxed text-slate-500">
+            <p className="mt-3 border-t border-sky-200/10 pt-2 text-[10px] leading-relaxed text-slate-500">
               AI detection metadata reflects saved record fields only. Structural assessment is shown separately and is not inferred from object labels.
             </p>
-          </>
+          </div>
         )}
 
-        {generationError && <p role="alert" className="text-xs text-danger-300">{generationError}</p>}
+        {generationError && <p role="alert" className="shrink-0 text-xs text-danger-300">{generationError}</p>}
         <button
           type="button"
           onClick={() => void generate()}
           disabled={!currentRecord || genState === 'generating' || loading}
-          className={`flex min-h-11 items-center justify-center gap-2 rounded-lg border px-4 py-3 text-xs font-bold uppercase tracking-wider transition disabled:cursor-not-allowed disabled:opacity-50 ${
+          className={`flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-xs font-bold uppercase tracking-wider transition disabled:cursor-not-allowed disabled:opacity-50 ${
             genState === 'done'
               ? 'border-ok-500/40 bg-ok-500 text-white'
               : 'border-ok-500/40 bg-ok-500/10 text-ok-300 hover:bg-ok-500 hover:text-white'
