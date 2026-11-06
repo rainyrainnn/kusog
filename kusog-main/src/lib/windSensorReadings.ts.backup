@@ -1,0 +1,156 @@
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+
+export type WindSensorReading = {
+  id: number | string;
+  wind_speed: number;
+  wind_direction: number | null;
+  recorded_at: string;
+};
+
+export type WindHistoryPoint = {
+  recordedAt: number;
+  speedKmh: number;
+};
+
+type WindSensorReadingsState = {
+  recordId: string | null;
+  reading: WindSensorReading | null;
+  history: WindHistoryPoint[];
+  loading: boolean;
+};
+
+const POLL_INTERVAL_MS = 5000;
+const HISTORY_LENGTH = 120;
+
+function parseNumericField(value: unknown, label: string): number {
+  if ((typeof value !== 'number' && typeof value !== 'string') || (typeof value === 'string' && value.trim() === '')) {
+    throw new Error(`The wind sensor reading has an invalid ${label}.`);
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) throw new Error(`The wind sensor reading has an invalid ${label}.`);
+  return parsed;
+}
+
+function parseReading(value: unknown, recordId: string): WindSensorReading {
+  if (typeof value !== 'object' || value === null) {
+    throw new Error('The wind sensor reading returned an invalid response.');
+  }
+
+  const row = value as Record<string, unknown>;
+  if (
+    (typeof row.id !== 'number' && typeof row.id !== 'string')
+    || String(row.test_record_id) !== recordId
+  ) {
+    throw new Error('The wind sensor reading does not belong to the active test.');
+  }
+  const windSpeed = parseNumericField(row.wind_speed, 'wind speed');
+  if (windSpeed < 0) throw new Error('The wind sensor reading has an invalid wind speed.');
+
+  const direction = row.wind_direction;
+  const parsedDirection = direction === null || direction === undefined || direction === ''
+    ? null
+    : typeof direction === 'number' || typeof direction === 'string'
+      ? Number(direction)
+      : Number.NaN;
+  const windDirection = parsedDirection !== null
+    && Number.isFinite(parsedDirection)
+    && parsedDirection >= 0
+    && parsedDirection < 360
+    ? parsedDirection
+    : null;
+
+  if (typeof row.recorded_at !== 'string' || !Number.isFinite(Date.parse(row.recorded_at))) {
+    throw new Error('The wind sensor reading has an invalid timestamp.');
+  }
+
+  return {
+    id: row.id,
+    wind_speed: windSpeed,
+    wind_direction: windDirection,
+    recorded_at: row.recorded_at,
+  };
+}
+
+export function useWindSensorReadings(recordId: string | null): WindSensorReadingsState {
+  const [state, setState] = useState<WindSensorReadingsState>({
+    recordId: null,
+    reading: null,
+    history: [],
+    loading: false,
+  });
+
+  useEffect(() => {
+    if (!recordId) {
+      setState({ recordId: null, reading: null, history: [], loading: false });
+      return;
+    }
+
+    let mounted = true;
+    let polling = false;
+    setState({ recordId, reading: null, history: [], loading: true });
+
+    const poll = async () => {
+      if (polling || !mounted) return;
+      polling = true;
+
+      try {
+        const { data, error } = await supabase
+          .from('wind_sensor_readings')
+          .select('id, wind_speed, wind_direction, recorded_at, test_record_id')
+          .eq('test_record_id', recordId)
+          .order('recorded_at', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (error) throw new Error(error.message);
+        if (!mounted) return;
+
+        if (!data) {
+          setState((current) => current.recordId === recordId
+            ? current.loading ? { ...current, loading: false } : current
+            : current);
+          return;
+        }
+
+        const reading = parseReading(data, recordId);
+        setState((current) => {
+          if (current.recordId !== recordId) return current;
+          if (String(current.reading?.id) === String(reading.id)) {
+            return current.loading ? { ...current, loading: false } : current;
+          }
+          return {
+            recordId,
+            reading,
+            history: [
+              ...current.history,
+              { recordedAt: Date.parse(reading.recorded_at), speedKmh: reading.wind_speed * 3.6 },
+            ].slice(-HISTORY_LENGTH),
+            loading: false,
+          };
+        });
+      } catch (cause) {
+        if (mounted) {
+          console.error(`Unable to load wind sensor readings for active test ${recordId}:`, cause);
+          setState((current) => current.recordId === recordId && current.loading
+            ? { ...current, loading: false }
+            : current);
+        }
+      } finally {
+        polling = false;
+      }
+    };
+
+    void poll();
+    const timer = window.setInterval(() => void poll(), POLL_INTERVAL_MS);
+    return () => {
+      mounted = false;
+      window.clearInterval(timer);
+    };
+  }, [recordId]);
+
+  return state.recordId === recordId
+    ? state
+    : { recordId, reading: null, history: [], loading: recordId !== null };
+}

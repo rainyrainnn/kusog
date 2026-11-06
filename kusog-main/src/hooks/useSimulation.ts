@@ -108,6 +108,7 @@ export function useSimulation({ loadCell, windSensor }: { loadCell: LoadCellData
   // Telemetry
   const windSpeed = isTestRunning && windSensor.connected ? windSensor.windSpeedMps ?? 0 : 0;
   const windDir = isTestRunning && windSensor.connected ? windSensor.windDirectionDeg ?? 0 : 0;
+  const windDirectionDeg = isTestRunning && windSensor.connected ? windSensor.windDirectionDeg : null;
   const [aiConfidence, setAiConfidence] = useState<number | null>(null);
   const currentForce = isTestRunning && loadCell.connected ? loadCell.upliftForceN ?? 0 : 0;
 
@@ -482,6 +483,7 @@ void setEdgeSimulationActive(true).catch((error) => {
     setHouse,
     // Controls
     windDir,
+    windDirectionDeg,
     // Telemetry
     windSpeed,
     windHist: isTestRunning ? windSensor.history : [],

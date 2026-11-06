@@ -15,7 +15,7 @@ export function CameraView({ sim }: { sim: Simulation }) {
     recordYoloAssessment(result.detections, analysisReady, health.classes ?? []);
   }, [recordYoloAssessment]);
   const isSimulationActive = sim.isDevicesActive && !sim.isFinalizing;
-  const yolo = useYoloDetections(isSimulationActive, handleYoloResult);
+  const yolo = useYoloDetections(true, handleYoloResult);
 
   return (
     <div className="space-y-4">

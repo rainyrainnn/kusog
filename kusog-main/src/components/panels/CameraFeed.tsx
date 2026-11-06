@@ -50,7 +50,7 @@ export function CameraFeed({ onExpand, isSimulationRunning, yolo, structuralAsse
   const online = streamStatus === 'online';
   const modelReady = isModelReady(yolo.health);
   const yoloReady = modelReady && yolo.health?.camera === 'online';
-  const detectionResult = isSimulationRunning && online && yoloReady ? yolo.result : null;
+  const detectionResult = online && yoloReady ? yolo.result : null;
   const resolution = online
     ? yolo.health?.resolution
       || system.edgeHealth?.resolution
@@ -64,9 +64,9 @@ export function CameraFeed({ onExpand, isSimulationRunning, yolo, structuralAsse
       : streamError
         ? 'ERROR'
         : online
-          ? 'LIVE'
+          ? 'ONLINE'
           : 'OFFLINE';
-  const statusTone = statusLabel === 'LIVE'
+  const statusTone = statusLabel === 'ONLINE'
     ? 'text-ok-400'
     : statusLabel === 'ERROR' || statusLabel === 'OFFLINE'
       ? 'text-danger-400'
@@ -181,8 +181,8 @@ export function CameraFeed({ onExpand, isSimulationRunning, yolo, structuralAsse
           aria-live="polite"
           className="inline-flex shrink-0 items-center gap-2 rounded-full border border-sky-200/15 bg-base-950/70 px-2.5 py-1.5"
         >
-          <span className={`relative h-2 w-2 shrink-0 rounded-full ${statusLabel === 'LIVE' ? 'bg-ok-400' : statusLabel === 'OFFLINE' || statusLabel === 'ERROR' ? 'bg-danger-400' : statusLabel === 'CONNECTING' ? 'bg-warn-400' : statusLabel === 'DEMO DATA' ? 'bg-accent-300' : 'bg-slate-500'}`}>
-            {statusLabel === 'LIVE' && <span className="absolute inset-0 animate-ping rounded-full bg-ok-400 opacity-30" />}
+          <span className={`relative h-2 w-2 shrink-0 rounded-full ${statusLabel === 'ONLINE' ? 'bg-ok-400' : statusLabel === 'OFFLINE' || statusLabel === 'ERROR' ? 'bg-danger-400' : statusLabel === 'CONNECTING' ? 'bg-warn-400' : statusLabel === 'DEMO DATA' ? 'bg-accent-300' : 'bg-slate-500'}`}>
+            {statusLabel === 'ONLINE' && <span className="absolute inset-0 animate-ping rounded-full bg-ok-400 opacity-30" />}
           </span>
           <span className={`text-[9px] font-bold tracking-[0.14em] ${statusTone}`}>{statusLabel}</span>
         </span>
@@ -291,7 +291,7 @@ export function CameraFeed({ onExpand, isSimulationRunning, yolo, structuralAsse
               ? isSimulationRunning ? 'Object detections unavailable' : 'Object detection idle'
               : detectionCount === 0 ? 'No objects detected in the latest result' : `${detectionCount} object ${detectionCount === 1 ? 'detection' : 'detections'} in latest result`}
           </p>
-          <p className="mt-1 text-[9px] leading-relaxed text-slate-500">YOLO object detection is separate from structural damage assessment.</p>
+          <p className="mt-1 text-[9px] leading-relaxed text-slate-500">Real-time YOLO damage detections are shown when returned by the Raspberry Pi.</p>
         </div>
         <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:shrink-0">
           <button

@@ -48,16 +48,23 @@ function parseReading(value: unknown): BMP280Reading {
   };
 }
 
-export function useBMP280Sensor() {
+export function useBMP280Sensor(enabled: boolean) {
   const lastSummaryRefresh = useRef(0);
   const lastSummaryReadingAt = useRef<string | null>(null);
   const [state, setState] = useState<BMP280State>({
     reading: null,
-    loading: true,
+    loading: false,
     error: null,
   });
 
   useEffect(() => {
+    if (!enabled) {
+      setState({ reading: null, loading: false, error: null });
+      lastSummaryRefresh.current = 0;
+      lastSummaryReadingAt.current = null;
+      return;
+    }
+
     let mounted = true;
     let polling = false;
     setState({ reading: null, loading: true, error: null });
@@ -109,7 +116,7 @@ export function useBMP280Sensor() {
       mounted = false;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [enabled]);
 
-  return state;
+  return { ...state, enabled };
 }

@@ -1,4 +1,8 @@
 ALTER TABLE public.bmp280_readings
+  ADD COLUMN IF NOT EXISTS test_record_id uuid
+  REFERENCES public.test_records(id) ON DELETE RESTRICT;
+
+ALTER TABLE public.bmp280_readings
   ALTER COLUMN test_record_id DROP NOT NULL;
 
 DROP POLICY IF EXISTS bmp280_readings_select_unassociated ON public.bmp280_readings;

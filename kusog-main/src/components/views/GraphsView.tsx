@@ -60,7 +60,7 @@ export function GraphsView({ sim, wind, loadCell, rain }: {
   const [historyRange, setHistoryRange] = useState(Number.POSITIVE_INFINITY);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const testActive = sim.isTestRunning && !sim.isFinalizing;
-  const bmp280 = useBMP280Sensor();
+  const bmp280 = useBMP280Sensor(testActive);
 
   useEffect(() => {
     let active = true;
@@ -123,7 +123,7 @@ export function GraphsView({ sim, wind, loadCell, rain }: {
   const windLive = testActive && wind.connected && wind.windSpeedMps !== null && wind.windDirectionDeg !== null;
   const forceLive = testActive && loadCell.connected && loadCell.upliftForceN !== null;
   const bmp280AgeMs = bmp280.reading ? Date.now() - Date.parse(bmp280.reading.recorded_at) : Infinity;
-  const bmp280Live = Boolean(bmp280.reading && !bmp280.error && bmp280AgeMs >= -30_000 && bmp280AgeMs < 30_000);
+  const bmp280Live = Boolean(bmp280.enabled && bmp280.reading && !bmp280.error && bmp280AgeMs >= -30_000 && bmp280AgeMs < 30_000);
   const rainLive = testActive && rain.source === 'hardware' && rain.connected && rain.rain24h !== null;
 
   return (
@@ -146,8 +146,8 @@ export function GraphsView({ sim, wind, loadCell, rain }: {
           <CurrentReading label="Wind speed" value={windLive && wind.windSpeedMps !== null ? (wind.windSpeedMps * 3.6).toFixed(1) : '--'} unit="km/h" status={windLive ? 'LIVE' : !testActive ? 'UNAVAILABLE' : wind.recordedAt ? 'STALE DATA' : 'UNAVAILABLE'} icon={<Wind className="h-4 w-4" />} />
           <CurrentReading label="Wind direction" value={windLive && wind.windDirectionDeg !== null ? `${wind.windDirectionDeg.toFixed(1)}°` : '--'} unit="" status={windLive ? 'LIVE' : !testActive ? 'UNAVAILABLE' : wind.recordedAt ? 'STALE DATA' : 'UNAVAILABLE'} icon={<Compass className="h-4 w-4" />} />
           <CurrentReading label="Rainfall (24 h)" value={rainLive && rain.rain24h !== null ? rain.rain24h.toFixed(1) : '--'} unit="API unit" status={rainLive ? 'LIVE' : !testActive ? 'UNAVAILABLE' : rain.source === 'hardware' && rain.offline ? 'OFFLINE' : 'UNAVAILABLE'} icon={<CloudRain className="h-4 w-4" />} />
-          <CurrentReading label="Temperature" value={bmp280Live && bmp280.reading ? bmp280.reading.temperature_c.toFixed(1) : '--'} unit="°C" status={bmp280Live ? 'LIVE' : bmp280.error ? 'OFFLINE' : bmp280.loading ? 'CONNECTING' : bmp280.reading ? 'STALE DATA' : 'UNAVAILABLE'} icon={<Thermometer className="h-4 w-4" />} />
-          <CurrentReading label="Atmospheric pressure" value={bmp280Live && bmp280.reading ? bmp280.reading.pressure_hpa.toFixed(1) : '--'} unit="hPa" status={bmp280Live ? 'LIVE' : bmp280.error ? 'OFFLINE' : bmp280.loading ? 'CONNECTING' : bmp280.reading ? 'STALE DATA' : 'UNAVAILABLE'} icon={<Gauge className="h-4 w-4" />} />
+          <CurrentReading label="Temperature" value={bmp280Live && bmp280.reading ? bmp280.reading.temperature_c.toFixed(1) : '--'} unit="°C" status={!bmp280.enabled ? 'UNAVAILABLE' : bmp280Live ? 'LIVE' : bmp280.error ? 'OFFLINE' : bmp280.loading ? 'CONNECTING' : bmp280.reading ? 'STALE DATA' : 'UNAVAILABLE'} icon={<Thermometer className="h-4 w-4" />} />
+          <CurrentReading label="Atmospheric pressure" value={bmp280Live && bmp280.reading ? bmp280.reading.pressure_hpa.toFixed(1) : '--'} unit="hPa" status={!bmp280.enabled ? 'UNAVAILABLE' : bmp280Live ? 'LIVE' : bmp280.error ? 'OFFLINE' : bmp280.loading ? 'CONNECTING' : bmp280.reading ? 'STALE DATA' : 'UNAVAILABLE'} icon={<Gauge className="h-4 w-4" />} />
           <CurrentReading label="Uplift force" value={forceLive && loadCell.upliftForceN !== null ? loadCell.upliftForceN.toFixed(2) : '--'} unit="N" status={forceLive ? 'LIVE' : !testActive ? 'UNAVAILABLE' : loadCell.recordedAt ? 'STALE DATA' : 'UNAVAILABLE'} icon={<Weight className="h-4 w-4" />} />
         </div>
       </section>

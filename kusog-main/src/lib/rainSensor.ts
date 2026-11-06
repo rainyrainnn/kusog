@@ -16,8 +16,10 @@ export type RainSensorData = {
   recordedAt: string | null;
 };
 
-const POLL_INTERVAL_MS = configuredInterval(import.meta.env.VITE_KUSOG_RAIN_POLL_INTERVAL_MS, 10_000);
+const POLL_INTERVAL_MS = 5000;
 const REQUEST_TIMEOUT_MS = 4000;
+const CONFIGURED_RAIN_URL = (import.meta.env.VITE_KUSOG_RAIN_URL as string | undefined)?.trim() ?? '';
+const RAIN_API_URL = import.meta.env.DEV ? '/kusog-rain' : CONFIGURED_RAIN_URL;
 
 const EMPTY_SENSOR: RainSensorData = {
   source: 'inactive',
@@ -30,12 +32,6 @@ const EMPTY_SENSOR: RainSensorData = {
   batteryPercentage: null,
   recordedAt: null,
 };
-
-function configuredInterval(value: string | undefined, fallback: number): number {
-  if (value === undefined || value.trim() === '') return fallback;
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed >= 1000 ? parsed : fallback;
-}
 
 export function useRainSensor(enabled: boolean) {
   const [data, setData] = useState<RainSensorData>(EMPTY_SENSOR);
@@ -51,19 +47,25 @@ export function useRainSensor(enabled: boolean) {
     }
 
     let active = true;
-    let pollTimer: number | undefined;
+    let polling = false;
     let controller: AbortController | null = null;
     setData({ ...EMPTY_SENSOR, offline: false });
     setError(null);
     setLoading(true);
 
     const poll = async () => {
+      if (polling) return;
+      polling = true;
       const requestController = new AbortController();
       controller = requestController;
       const timeout = window.setTimeout(() => requestController.abort(), REQUEST_TIMEOUT_MS);
 
       try {
-        const response = await fetch('/kusog-rain/api/rain', {
+        if (!RAIN_API_URL) {
+          throw new Error('Set VITE_KUSOG_RAIN_URL to the Raspberry Pi rain API endpoint.');
+        }
+
+        const response = await fetch(RAIN_API_URL, {
           signal: requestController.signal,
           cache: 'no-store',
         });
@@ -99,14 +101,15 @@ export function useRainSensor(enabled: boolean) {
       } finally {
         window.clearTimeout(timeout);
         if (active) setLoading(false);
-        if (active) pollTimer = window.setTimeout(() => void poll(), POLL_INTERVAL_MS);
+        polling = false;
       }
     };
 
     void poll();
+    const pollTimer = window.setInterval(() => void poll(), POLL_INTERVAL_MS);
     return () => {
       active = false;
-      if (pollTimer !== undefined) window.clearTimeout(pollTimer);
+      window.clearInterval(pollTimer);
       controller?.abort();
     };
   }, [enabled]);

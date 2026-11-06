@@ -10,6 +10,13 @@ from backend import rain_sensor_uploader
 
 
 class RainSensorUploaderTests(unittest.TestCase):
+    def test_upload_interval_is_limited_to_five_seconds(self) -> None:
+        self.assertEqual(rain_sensor_uploader.upload_interval_seconds("30"), 5)
+        self.assertEqual(rain_sensor_uploader.upload_interval_seconds("5"), 5)
+        self.assertEqual(rain_sensor_uploader.upload_interval_seconds("1"), 1)
+        self.assertEqual(rain_sensor_uploader.upload_interval_seconds(None), 5)
+        self.assertEqual(rain_sensor_uploader.upload_interval_seconds("invalid"), 5)
+
     def test_parse_api_reading_uses_real_sensor_fields(self) -> None:
         reading = rain_sensor_uploader.parse_api_reading({
             "connected": True,

@@ -12,7 +12,7 @@ export type WindSensorData = {
   history: WindPoint[];
 };
 
-const OFFLINE_AFTER_MS = 5_000;
+const OFFLINE_AFTER_MS = 30_000;
 const POLL_INTERVAL_MS = 1_000;
 const HISTORY_LENGTH = 120;
 
@@ -71,16 +71,20 @@ export function useWindSensor(): WindSensorData {
         if (error) throw new Error(error.message);
         if (!active) return;
         if (!row) {
-          latestId.current = null;
-          sampleNumber.current = 0;
-          setData(EMPTY_SENSOR);
+          setData((current) => ({
+            ...current,
+            connected: isRecent(current.recordedAt),
+          }));
           return;
         }
 
         const speed = numericOrNull(row.wind_speed);
         const direction = numericOrNull(row.wind_direction);
         const recordedAt = typeof row.recorded_at === 'string' ? row.recorded_at : null;
-        const validReading = speed !== null && speed >= 0 && direction !== null && direction >= 0 && direction < 360;
+        const validReading = speed !== null && speed >= 0;
+        const validDirection = direction !== null && direction >= 0 && direction < 360
+          ? direction
+          : null;
 
         if (validReading && latestId.current !== row.id) {
           latestId.current = row.id;
@@ -88,21 +92,30 @@ export function useWindSensor(): WindSensorData {
           setData((current) => ({
             connected: isRecent(recordedAt),
             windSpeedMps: speed,
-            windDirectionDeg: direction,
+            windDirectionDeg: validDirection,
             recordedAt,
             history: [...current.history.slice(-(HISTORY_LENGTH - 1)), { t: sampleNumber.current, value: speed }],
+          }));
+        } else if (validReading) {
+          setData((current) => ({
+            ...current,
+            connected: isRecent(recordedAt),
+            windSpeedMps: speed,
+            windDirectionDeg: validDirection,
+            recordedAt,
           }));
         } else {
           setData((current) => ({
             ...current,
-            connected: validReading && isRecent(recordedAt),
-            windSpeedMps: validReading ? speed : null,
-            windDirectionDeg: validReading ? direction : null,
-            recordedAt,
+            connected: isRecent(current.recordedAt),
           }));
         }
-      } catch {
-        if (active) setData((current) => ({ ...current, connected: false }));
+      } catch (error) {
+        console.error(`Unable to load wind sensor reading for active test ${recordId}:`, error);
+        if (active) setData((current) => ({
+          ...current,
+          connected: isRecent(current.recordedAt),
+        }));
       } finally {
         polling = false;
       }

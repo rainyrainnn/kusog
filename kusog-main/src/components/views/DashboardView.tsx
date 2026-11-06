@@ -21,7 +21,7 @@ import type { RouteId } from '@/components/Sidebar';
 import { fmtElapsed } from '@/hooks/useSimulation';
 import { CameraFeed } from '@/components/panels/CameraFeed';
 import { RainControl } from '@/components/panels/RainControl';
-import { WindDirection } from '@/components/panels/WindDirection';
+import { WindSensorCard } from '@/components/panels/WindSensorCard';
 import { StructuralStatus } from '@/components/panels/StructuralStatus';
 import { ForceGraph } from '@/components/panels/Graphs';
 import { TestLog } from '@/components/panels/TestLog';
@@ -35,6 +35,7 @@ import { useYoloDetections } from '@/hooks/useYoloDetections';
 import type { EdgeDetectionResponse, EdgeHealth } from '@/lib/edgeService';
 import { hasDamageClasses } from '@/lib/edgeService';
 import { useBMP280Sensor } from '@/lib/bmp280Sensor';
+import { useRainSensorReadings } from '@/lib/rainSensorReadings';
 import {
   fetchTestRecords,
   subscribeToTestRecordsChanged,
@@ -107,7 +108,16 @@ export function DashboardView({ sim, rainSensor, sensorError, sensorLoading, onN
   const [recordsError, setRecordsError] = useState<string | null>(null);
 
   const isSimulationActive = (sim.isDevicesActive || sim.isTestRunning) && !sim.isFinalizing;
-  const bmp280 = useBMP280Sensor();
+  const activeRainRecordId = isSimulationActive && !sim.isStarting && !sim.hasPendingStart
+    ? sim.testRecord?.id ?? null
+    : null;
+  const activeWindRecordId = isSimulationActive
+    && !sim.isStarting
+    && !sim.hasPendingStart
+    ? sim.testRecord?.id ?? null
+    : null;
+  const rainReading = useRainSensorReadings(activeRainRecordId);
+  const bmp280 = useBMP280Sensor(isSimulationActive);
   const recordYoloAssessment = sim.recordYoloAssessment;
   const handleYoloResult = useCallback((health: EdgeHealth, result: EdgeDetectionResponse) => {
     const analysisReady = health.status === 'ok'
@@ -115,7 +125,7 @@ export function DashboardView({ sim, rainSensor, sensorError, sensorLoading, onN
       && health.camera === 'online';
     recordYoloAssessment(result.detections, analysisReady, health.classes ?? []);
   }, [recordYoloAssessment]);
-  const yolo = useYoloDetections(isSimulationActive, handleYoloResult);
+  const yolo = useYoloDetections(true, handleYoloResult);
 
   useEffect(() => {
     let active = true;
@@ -188,7 +198,9 @@ export function DashboardView({ sim, rainSensor, sensorError, sensorLoading, onN
 
   const bmp280AgeMs = bmp280.reading ? Date.now() - Date.parse(bmp280.reading.recorded_at) : Infinity;
   const bmp280Fresh = Boolean(bmp280.reading && !bmp280.error && bmp280AgeMs >= -30_000 && bmp280AgeMs < 30_000);
-  const bmp280Tone: Tone = bmp280.error
+  const bmp280Tone: Tone = !bmp280.enabled
+    ? 'inactive'
+    : bmp280.error
     ? 'offline'
     : bmp280Fresh
       ? 'online'
@@ -199,8 +211,10 @@ export function DashboardView({ sim, rainSensor, sensorError, sensorLoading, onN
           : 'inactive';
   const bmp280Temperature = bmp280Fresh ? bmp280.reading?.temperature_c : null;
   const bmp280Pressure = bmp280Fresh ? bmp280.reading?.pressure_hpa : null;
-  const bmp280Detail = bmp280.error
-    ? `Supabase error: ${bmp280.error}`
+  const bmp280Detail = !bmp280.enabled
+    ? 'Start simulation to load BMP280 readings.'
+    : bmp280.error
+      ? `Supabase error: ${bmp280.error}`
     : bmp280.loading
       ? 'Loading BMP280 readings from Supabase…'
       : bmp280.reading
@@ -289,24 +303,32 @@ export function DashboardView({ sim, rainSensor, sensorError, sensorLoading, onN
           <MetricCard
             icon={Compass}
             label="Wind direction"
-            value={windAvailable ? `${Math.round(sim.windDir)}° ${compassPoint(sim.windDir)}` : '--'}
+            value={!windAvailable
+              ? '--'
+              : sim.windDirectionDeg === null
+                ? 'N/A'
+                : `${Math.round(sim.windDirectionDeg)}° ${compassPoint(sim.windDirectionDeg)}`}
             detail={windAvailable ? 'Wind sensor' : isSimulationActive ? 'Wind sensor' : 'Waiting for test'}
             tone={windAvailable ? 'online' : isSimulationActive ? 'offline' : 'inactive'}
           />
           <MetricCard
             icon={CloudRain}
             label="Rainfall · 24 h"
-            value={rainSensor.connected && rainSensor.rain24h !== null
-              ? rainSensor.rain24h.toFixed(1)
+            value={activeRainRecordId && (rainReading.reading?.rain_24h ?? rainSensor.rain24h) !== null
+              ? (rainReading.reading?.rain_24h ?? rainSensor.rain24h)?.toFixed(1) ?? '--'
               : '--'}
-            detail={rainSensor.connected
-              ? `${rainSensor.rainLevel || 'Rain sensor'} · hardware · API unit`
-              : rainSensor.source === 'inactive'
-                ? 'Waiting for test'
-                : sensorLoading
-                  ? 'Checking sensor'
-                  : sensorError ? 'Rain sensor error' : 'Rain sensor unavailable'}
-            tone={rainTone}
+            detail={!activeRainRecordId
+              ? rainSensor.connected ? 'Connected · readings shown during simulation' : sensorError || 'Rain sensor unavailable'
+              : rainReading.error
+                ? `Supabase error: ${rainReading.error}`
+                : rainReading.reading
+                  ? `${rainReading.reading.rain_level} · Supabase`
+                  : rainSensor.connected
+                    ? `${rainSensor.rainLevel} · Tuya live; waiting for Supabase upload`
+                    : rainReading.loading ? 'Loading rain sensor reading' : 'No uploaded reading yet'}
+            tone={!activeRainRecordId
+              ? rainSensor.connected ? 'online' : rainTone
+              : rainReading.error ? 'offline' : rainReading.reading ? 'online' : rainReading.loading ? 'pending' : 'inactive'}
           />
           <MetricCard
             icon={Thermometer}
@@ -336,6 +358,8 @@ export function DashboardView({ sim, rainSensor, sensorError, sensorLoading, onN
           </p>
         )}
       </section>
+
+      <WindSensorCard recordId={activeWindRecordId} />
 
       <Panel
         title="Recent Test Activity"
@@ -382,11 +406,20 @@ export function DashboardView({ sim, rainSensor, sensorError, sensorLoading, onN
 
       <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-12">
         <div className="min-w-0 xl:col-span-8"><ForceGraph sim={sim} /></div>
-        <div className="min-w-0 xl:col-span-4"><RainControl sensor={rainSensor} sensorError={sensorError} loading={sensorLoading} /></div>
+        <div className="min-w-0 xl:col-span-4">
+          <RainControl
+            sensor={rainSensor}
+            sensorError={sensorError}
+            loading={sensorLoading}
+            reading={rainReading.reading}
+            readingLoading={rainReading.loading}
+            readingError={rainReading.error}
+            recordId={activeRainRecordId}
+          />
+        </div>
       </div>
 
       <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="min-w-0"><WindDirection sim={sim} /></div>
         <div className="min-w-0"><StructuralStatus /></div>
         <div className="min-w-0"><HouseSetup sim={sim} /></div>
       </div>
@@ -550,7 +583,7 @@ function HealthRow({ label, icon: Icon, status, detail }: {
             : status === 'inactive' ? 'inactive'
               : status === 'offline' ? 'offline'
                 : 'neutral';
-  const labelStatus = status === 'online' ? 'ONLINE'
+  const labelStatus = status === 'online' ? label === 'USB camera' ? 'ACTIVE' : 'ONLINE'
     : status === 'demo' ? 'DEMO DATA'
       : status === 'pending' ? 'CHECKING'
         : status === 'error' ? 'ERROR'

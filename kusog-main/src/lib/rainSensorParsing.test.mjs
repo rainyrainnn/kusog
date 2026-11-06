@@ -1,6 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseRainApiResponse } from './rainSensorParsing.ts';
+import { isRainDetected, parseRainApiResponse } from './rainSensorParsing.ts';
+
+test('detects rain from supported rain-state text', () => {
+  for (const state of ['rain', 'raining', 'heavy rain', 'drizzle']) {
+    assert.equal(isRainDetected(state), true, `${state} should indicate rain`);
+  }
+});
+
+test('does not report rain for dry, normal, or explicit no-rain states', () => {
+  for (const state of ['normal', 'dry', 'clear', 'no rain', 'not raining', 'unknown']) {
+    assert.equal(isRainDetected(state), false, `${state} should not indicate rain`);
+  }
+});
 
 test('parses the connected Pi API sensor payload without inventing a sample timestamp', () => {
   const reading = parseRainApiResponse({

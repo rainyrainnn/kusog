@@ -24,7 +24,7 @@ export function SensorMonitoring({ active, wind, loadCell, rain, rainLoading, wi
   rainLoading: boolean;
   windHistory: WindPoint[];
 }) {
-  const bmp280 = useBMP280Sensor();
+  const bmp280 = useBMP280Sensor(active);
   const windStatus: SensorStatus = !active
     ? 'UNAVAILABLE'
     : wind.connected ? 'LIVE'
@@ -44,7 +44,9 @@ export function SensorMonitoring({ active, wind, loadCell, rain, rainLoading, wi
   const bmp280AgeMs = bmp280.reading ? Date.now() - Date.parse(bmp280.reading.recorded_at) : null;
   const bmp280Fresh = Boolean(bmp280.reading && bmp280AgeMs !== null && bmp280AgeMs >= -30_000 && bmp280AgeMs < 30_000);
   const bmp280Reading = bmp280Fresh ? bmp280.reading : null;
-  const bmp280Status: SensorStatus = bmp280.error
+  const bmp280Status: SensorStatus = !bmp280.enabled
+    ? 'UNAVAILABLE'
+    : bmp280.error
     ? 'OFFLINE'
     : bmp280.reading && !bmp280Fresh
       ? 'STALE DATA'
@@ -85,8 +87,10 @@ export function SensorMonitoring({ active, wind, loadCell, rain, rainLoading, wi
           temperature={bmp280Reading ? bmp280Reading.temperature_c.toFixed(1) : '--'}
           pressure={bmp280Reading ? bmp280Reading.pressure_hpa.toFixed(1) : '--'}
           updatedAt={bmp280Reading ? formatSensorTime(bmp280Reading.recorded_at) : null}
-          detail={bmp280.error
-            ? `Unable to load BMP280 readings from Supabase: ${bmp280.error}`
+          detail={!bmp280.enabled
+            ? 'Start a simulation to read BMP280 from Supabase.'
+            : bmp280.error
+              ? `Unable to load BMP280 readings from Supabase: ${bmp280.error}`
             : bmp280.reading && !bmp280Fresh
               ? 'Last BMP280 reading is older than the 30-second freshness window.'
               : !bmp280Reading && bmp280.loading

@@ -38,7 +38,7 @@ function DashboardContent({ profile, onSignOut }: { profile: OperatorProfile; on
   const loadCell = useLoadCell();
   const windSensor = useWindSensor();
   const sim = useSimulation({ loadCell, windSensor });
-  const { data: rainSensor, error: rainSensorError, loading: rainSensorLoading } = useRainSensor(sim.isDevicesActive);
+  const { data: rainSensor, error: rainSensorError, loading: rainSensorLoading } = useRainSensor(true);
   const [route, setRoute] = useState<RouteId>('dashboard');
 
   return (

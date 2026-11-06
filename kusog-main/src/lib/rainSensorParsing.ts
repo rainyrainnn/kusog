@@ -9,6 +9,19 @@ export type ParsedRainApiResponse = {
   error: string;
 };
 
+export function isRainDetected(state: string): boolean {
+  const normalized = state.trim().toLowerCase().replace(/[_-]+/g, ' ');
+  if (
+    !normalized
+    || /^(?:no|not)\s+rain(?:ing|y|fall)?(?:\b|$)/.test(normalized)
+    || ['normal', 'clear', 'dry', 'unknown', 'none'].includes(normalized)
+  ) {
+    return false;
+  }
+  return /(?:^|\s)rain(?:ing|y|fall)?(?:$|\s)/.test(normalized)
+    || /(?:^|\s)drizzle(?:$|\s)/.test(normalized);
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

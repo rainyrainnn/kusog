@@ -22,10 +22,16 @@ RAIN_API_URL = os.getenv(
 ).strip()
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
-try:
-    POLL_INTERVAL_SECONDS = max(10, int(os.getenv("RAIN_UPLOAD_INTERVAL_SECONDS", "30")))
-except ValueError:
-    POLL_INTERVAL_SECONDS = 30
+
+
+def upload_interval_seconds(value: str | None) -> int:
+    try:
+        return min(5, max(1, int(value or "5")))
+    except ValueError:
+        return 5
+
+
+POLL_INTERVAL_SECONDS = upload_interval_seconds(os.getenv("RAIN_UPLOAD_INTERVAL_SECONDS"))
 
 
 def required_config() -> None:

@@ -20,6 +20,7 @@ import { RainControl } from '@/components/panels/RainControl';
 import type { Simulation } from '@/hooks/useSimulation';
 import { fmtElapsed, windLabel } from '@/hooks/useSimulation';
 import type { RainSensorData } from '@/lib/rainSensor';
+import { useRainSensorReadings } from '@/lib/rainSensorReadings';
 
 type ControlsViewProps = {
   sim: Simulation;
@@ -31,6 +32,10 @@ type ControlsViewProps = {
 export function ControlsView({ sim, rainSensor, sensorError, sensorLoading }: ControlsViewProps) {
   const [stopRequestPending, setStopRequestPending] = useState(false);
   const running = sim.isTestRunning;
+  const activeRainRecordId = running && !sim.isFinalizing && !sim.isStarting && !sim.hasPendingStart
+    ? sim.testRecord?.id ?? null
+    : null;
+  const rainReading = useRainSensorReadings(activeRainRecordId);
   const canStart = !sim.isRestoring && !sim.isStarting && !running && !sim.isFinalizing
     && !sim.hasPendingStart && !sim.hasPendingFinalization;
   const canStop = running && !sim.isFinalizing && !sim.hasPendingFinalization && !stopRequestPending;
@@ -205,8 +210,10 @@ export function ControlsView({ sim, rainSensor, sensorError, sensorLoading }: Co
           />
           <OperatingValue
             label="Rainfall (24 h)"
-            value={rainSensor.source === 'hardware' && rainSensor.connected && rainSensor.rain24h !== null ? rainSensor.rain24h.toFixed(1) : '--'}
-            detail={rainSensor.source === 'hardware' && rainSensor.connected ? 'Connected hardware reading · API unit' : 'Unavailable'}
+            value={rainReading.reading?.rain_24h !== null && rainReading.reading?.rain_24h !== undefined ? rainReading.reading.rain_24h.toFixed(1) : '--'}
+            detail={!activeRainRecordId
+              ? rainSensor.connected ? 'Connected · readings shown during simulation' : 'Unavailable'
+              : rainReading.error ? `Supabase error: ${rainReading.error}` : rainReading.reading ? 'Supabase reading · API unit' : rainReading.loading ? 'Loading reading' : 'No uploaded reading yet'}
             icon={<CloudRain className="h-4 w-4" />}
           />
           <OperatingValue label="Fan setting" value="--" detail="No operator fan control is available." icon={<Activity className="h-4 w-4" />} />
@@ -214,7 +221,15 @@ export function ControlsView({ sim, rainSensor, sensorError, sensorLoading }: Co
       </Panel>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <RainControl sensor={rainSensor} sensorError={sensorError} loading={sensorLoading} />
+        <RainControl
+          sensor={rainSensor}
+          sensorError={sensorError}
+          loading={sensorLoading}
+          reading={rainReading.reading}
+          readingLoading={rainReading.loading}
+          readingError={rainReading.error}
+          recordId={activeRainRecordId}
+        />
         <Panel title="Hardware & session readiness" icon={<Activity className="h-4 w-4" />}>
           <p className="mb-3 text-[10px] leading-relaxed text-slate-500">
             Sensor states reflect the existing reading hooks. Edge inference receives start/stop requests with the test lifecycle; its connection and model health are not confirmed by these controls.
