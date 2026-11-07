@@ -241,7 +241,7 @@ export function DashboardView({ sim, rainSensor, sensorError, sensorLoading, onN
 
       <div className="grid min-w-0 grid-cols-1 items-stretch gap-4 xl:grid-cols-12">
         <div className="min-w-0 xl:col-span-7">
-          <CameraFeed onExpand={() => onNavigate('camera')} isSimulationRunning={isSimulationActive} yolo={yolo} />
+          <CameraFeed onExpand={() => onNavigate('camera')} isSimulationRunning={isSimulationActive} yolo={yolo} compact />
         </div>
         <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:col-span-5 xl:grid-cols-1">
           <AiSummary sim={sim} active={isSimulationActive} yolo={yolo} yoloStatus={system.yolo} />
