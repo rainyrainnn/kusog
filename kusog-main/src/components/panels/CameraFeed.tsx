@@ -25,6 +25,7 @@ type CameraFeedProps = {
   isSimulationRunning: boolean;
   yolo: YoloDetectionState;
   structuralAssessment?: string;
+  compact?: boolean;
 };
 
 function isModelReady(health: EdgeHealth | null): boolean {
@@ -35,7 +36,7 @@ function formatTime(date: Date | null): string {
   return date ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--';
 }
 
-export function CameraFeed({ onExpand, isSimulationRunning, yolo, structuralAssessment = 'NOT ASSESSED' }: CameraFeedProps) {
+export function CameraFeed({ onExpand, isSimulationRunning, yolo, structuralAssessment = 'NOT ASSESSED', compact = false }: CameraFeedProps) {
   const system = useSystemStatus();
   const frameRef = useRef<HTMLDivElement>(null);
   const [streamStatus, setStreamStatus] = useState<CameraStreamStatus>(
@@ -192,7 +193,7 @@ export function CameraFeed({ onExpand, isSimulationRunning, yolo, structuralAsse
     >
       <div
         ref={frameRef}
-        className={`relative isolate w-full overflow-hidden bg-[#050b16] ring-1 ring-inset ring-white/[0.06] ${isFullscreen ? 'h-[100dvh] w-screen' : 'aspect-video'}`}
+        className={`relative isolate w-full overflow-hidden bg-[#050b16] ring-1 ring-inset ring-white/[0.06] ${isFullscreen ? 'h-[100dvh] w-screen' : compact ? 'h-[280px] sm:h-[320px] xl:h-[360px]' : 'aspect-video'}`}
         aria-label="Chamber camera video frame"
       >
         {isCameraConfigured && streamStatus !== 'offline' ? (

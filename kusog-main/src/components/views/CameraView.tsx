@@ -28,6 +28,7 @@ export function CameraView({ sim }: { sim: Simulation }) {
         isSimulationRunning={isSimulationActive}
         yolo={yolo}
         structuralAssessment={sim.aiDetections.overall}
+        compact
       />
     </div>
   );
