@@ -120,7 +120,7 @@ export function GraphsView({ sim, wind, loadCell, rain }: {
     uplift: toHistoricalPoints(history, (record) => record.uplift_force_n, (record) => record.load_cell_reading_recorded_at),
   }), [history]);
 
-  const windLive = testActive && wind.connected && wind.windSpeedMps !== null && wind.windDirectionDeg !== null;
+  const windLive = testActive && wind.connected && wind.windSpeedMps !== null;
   const forceLive = testActive && loadCell.connected && loadCell.upliftForceN !== null;
   const bmp280AgeMs = bmp280.reading ? Date.now() - Date.parse(bmp280.reading.recorded_at) : Infinity;
   const bmp280Live = Boolean(bmp280.enabled && bmp280.reading && !bmp280.error && bmp280AgeMs >= -30_000 && bmp280AgeMs < 30_000);

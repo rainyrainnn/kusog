@@ -36,7 +36,7 @@ export function WindSensorCard({ recordId }: WindSensorCardProps) {
   const { reading, history, loading } = useWindSensorReadings(recordId);
   const hasTest = recordId !== null;
   const [now, setNow] = useState(() => Date.now());
-  const readingTimestamp = reading?.recorded_at ?? null;
+  const readingTimestamp = reading?.timestamp ?? null;
 
   useEffect(() => {
     if (!recordId || !readingTimestamp) return undefined;
@@ -44,12 +44,12 @@ export function WindSensorCard({ recordId }: WindSensorCardProps) {
     return () => window.clearInterval(timer);
   }, [recordId, readingTimestamp]);
 
-  const recordedAtMs = reading ? Date.parse(reading.recorded_at) : Number.NaN;
+  const recordedAtMs = reading ? Date.parse(reading.timestamp) : Number.NaN;
   const ageMs = now - recordedAtMs;
   const fresh = Number.isFinite(recordedAtMs) && ageMs >= -STALE_AFTER_MS && ageMs < STALE_AFTER_MS;
   const status: SensorStatus = hasTest && reading && fresh ? 'LIVE' : 'OFFLINE';
   const style = STATUS_STYLES[status];
-  const timestamp = formatTime(reading?.recorded_at ?? null);
+  const timestamp = formatTime(reading?.timestamp ?? null);
 
   return (
     <Panel
@@ -67,7 +67,7 @@ export function WindSensorCard({ recordId }: WindSensorCardProps) {
         <div className="min-w-0">
           <p className="text-[9px] font-semibold uppercase tracking-[0.1em] text-slate-500">Wind speed</p>
           <p className="mt-1 font-mono text-3xl font-semibold tracking-tight text-slate-100">
-            {reading ? (reading.wind_speed * 3.6).toFixed(1) : '--'}
+            {reading ? reading.wind_speed_kmh.toFixed(1) : '--'}
             <span className="ml-2 text-sm font-medium text-slate-400">km/h</span>
           </p>
         </div>

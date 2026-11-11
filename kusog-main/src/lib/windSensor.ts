@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useTestSession } from '@/hooks/useTestSession';
@@ -27,7 +28,9 @@ const EMPTY_SENSOR: WindSensorData = {
 function isRecent(timestamp: string | null): boolean {
   if (!timestamp) return false;
   const recorded = Date.parse(timestamp);
-  return Number.isFinite(recorded) && Date.now() - recorded <= OFFLINE_AFTER_MS && recorded <= Date.now() + 30_000;
+  return Number.isFinite(recorded)
+    && Date.now() - recorded <= OFFLINE_AFTER_MS
+    && recorded <= Date.now() + 30_000;
 }
 
 function numericOrNull(value: unknown): number | null {
@@ -58,18 +61,20 @@ export function useWindSensor(): WindSensorData {
     const poll = async () => {
       if (polling) return;
       polling = true;
+
       try {
         const { data: row, error } = await supabase
           .from('wind_sensor_readings')
-          .select('id, wind_speed, wind_direction, recorded_at')
+          .select('id, wind_speed_kmh, timestamp')
           .eq('test_record_id', recordId)
-          .order('recorded_at', { ascending: false })
+          .order('timestamp', { ascending: false })
           .order('id', { ascending: false })
           .limit(1)
           .maybeSingle();
 
         if (error) throw new Error(error.message);
         if (!active) return;
+
         if (!row) {
           setData((current) => ({
             ...current,
@@ -78,52 +83,51 @@ export function useWindSensor(): WindSensorData {
           return;
         }
 
-        const speed = numericOrNull(row.wind_speed);
-        const direction = numericOrNull(row.wind_direction);
-        const recordedAt = typeof row.recorded_at === 'string' ? row.recorded_at : null;
-        const validReading = speed !== null && speed >= 0;
-        const validDirection = direction !== null && direction >= 0 && direction < 360
-          ? direction
-          : null;
+        const speedKmh = numericOrNull(row.wind_speed_kmh);
+        const speedMps = speedKmh === null ? null : speedKmh / 3.6;
+        const recordedAt = typeof row.timestamp === 'string' ? row.timestamp : null;
 
-        if (validReading && latestId.current !== row.id) {
-          latestId.current = row.id;
-          sampleNumber.current += 1;
+        if (speedMps !== null && speedMps >= 0 && recordedAt) {
+          const isNewReading = latestId.current !== row.id;
+
+          if (isNewReading) {
+            latestId.current = row.id;
+            sampleNumber.current += 1;
+          }
+
           setData((current) => ({
             connected: isRecent(recordedAt),
-            windSpeedMps: speed,
-            windDirectionDeg: validDirection,
+            windSpeedMps: speedMps,
+            windDirectionDeg: null,
             recordedAt,
-            history: [...current.history.slice(-(HISTORY_LENGTH - 1)), { t: sampleNumber.current, value: speed }],
+            history: isNewReading
+              ? [...current.history.slice(-(HISTORY_LENGTH - 1)), {
+                  t: sampleNumber.current,
+                  value: speedMps,
+                }]
+              : current.history,
           }));
-        } else if (validReading) {
-          setData((current) => ({
-            ...current,
-            connected: isRecent(recordedAt),
-            windSpeedMps: speed,
-            windDirectionDeg: validDirection,
-            recordedAt,
-          }));
-        } else {
+        }
+      } catch (error) {
+        console.error(`Unable to load wind sensor reading for active test ${recordId}:`, error);
+        if (active) {
           setData((current) => ({
             ...current,
             connected: isRecent(current.recordedAt),
           }));
         }
-      } catch (error) {
-        console.error(`Unable to load wind sensor reading for active test ${recordId}:`, error);
-        if (active) setData((current) => ({
-          ...current,
-          connected: isRecent(current.recordedAt),
-        }));
       } finally {
         polling = false;
       }
     };
 
     void poll();
+
     const interval = window.setInterval(() => {
-      setData((current) => ({ ...current, connected: isRecent(current.recordedAt) }));
+      setData((current) => ({
+        ...current,
+        connected: isRecent(current.recordedAt),
+      }));
       void poll();
     }, POLL_INTERVAL_MS);
 

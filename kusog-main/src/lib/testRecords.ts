@@ -229,11 +229,12 @@ export async function fetchTestRecordsWithSensorReadings(): Promise<{
       const batch = records.slice(index, index + batchSize);
       const summaries = await Promise.all(batch.map(async (record) => {
         let windQuery = supabase
-          .from('wind_sensor_readings')
-          .select('wind_speed, wind_direction, recorded_at')
-          .eq('test_record_id', record.id)
-          .order('recorded_at', { ascending: false })
-          .limit(1);
+  .from('ultrasonic_wind_readings')
+  .select('wind_speed_kmh, wind_direction_degrees, timestamp')
+  .eq('test_record_id', record.id)
+  .order('timestamp', { ascending: false })
+  .limit(1);
+
         let loadCellQuery = supabase
           .from('load_cell_readings')
           .select('uplift_force_n, recorded_at')
@@ -254,13 +255,13 @@ export async function fetchTestRecordsWithSensorReadings(): Promise<{
           .limit(1);
 
         if (record.start_time) {
-          windQuery = windQuery.gte('recorded_at', record.start_time);
+          windQuery = windQuery.gte('timestamp', record.start_time);
           loadCellQuery = loadCellQuery.gte('recorded_at', record.start_time);
           bmp280Query = bmp280Query.gte('recorded_at', record.start_time);
           rainQuery = rainQuery.gte('recorded_at', record.start_time);
         }
         if (record.end_time) {
-          windQuery = windQuery.lte('recorded_at', record.end_time);
+          windQuery = windQuery.lte('timestamp', record.end_time);
           loadCellQuery = loadCellQuery.lte('recorded_at', record.end_time);
           bmp280Query = bmp280Query.lte('recorded_at', record.end_time);
           rainQuery = rainQuery.lte('recorded_at', record.end_time);
@@ -281,21 +282,21 @@ export async function fetchTestRecordsWithSensorReadings(): Promise<{
         const loadCell = loadCellResult.data?.[0];
         const bmp280 = bmp280Result.data?.[0];
         const rain = rainResult.data?.[0];
-        const windSpeedMps = wind?.wind_speed === null || wind?.wind_speed === undefined
+        const windSpeedKmh = wind?.wind_speed_kmh === null || wind?.wind_speed_kmh === undefined
+  ? null
+  : Number(wind.wind_speed_kmh);
+        const windDirection = wind?.wind_direction_degrees === null || wind?.wind_direction_degrees === undefined
           ? null
-          : Number(wind.wind_speed);
-        const windDirection = wind?.wind_direction === null || wind?.wind_direction === undefined
-          ? null
-          : Number(wind.wind_direction);
+          : Number(wind.wind_direction_degrees);
         const upliftForce = loadCell?.uplift_force_n === null || loadCell?.uplift_force_n === undefined
           ? null
           : Number(loadCell.uplift_force_n);
 
         return {
           ...record,
-          wind_speed_kmh: windSpeedMps !== null && Number.isFinite(windSpeedMps) ? windSpeedMps * 3.6 : null,
-          wind_direction_degrees: windDirection !== null && Number.isFinite(windDirection) ? windDirection : null,
-          wind_reading_recorded_at: wind?.recorded_at ?? null,
+          wind_speed_kmh: windSpeedKmh !== null && Number.isFinite(windSpeedKmh) ? windSpeedKmh : null,
+wind_direction_degrees: windDirection !== null && Number.isFinite(windDirection) ? windDirection : null,
+wind_reading_recorded_at: wind?.timestamp ?? null,
           uplift_force_n: upliftForce !== null && Number.isFinite(upliftForce) ? upliftForce : null,
           load_cell_reading_recorded_at: loadCell?.recorded_at ?? null,
           bmp280_temperature_c: bmp280?.temperature_c === null || bmp280?.temperature_c === undefined

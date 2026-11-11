@@ -1,6 +1,8 @@
+
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { notifySensorReadingsChanged } from '@/lib/testRecords';
+import { useTestSession } from '@/hooks/useTestSession';
 
 export type BMP280Reading = {
   temperature_c: number;
@@ -21,7 +23,9 @@ function parseReading(value: unknown): BMP280Reading {
   if (typeof value !== 'object' || value === null) {
     throw new Error('The BMP280 reading returned an invalid response.');
   }
+
   const row = value as Record<string, unknown>;
+
   if (
     typeof row.temperature_c !== 'number'
     || !Number.isFinite(row.temperature_c)
@@ -30,6 +34,7 @@ function parseReading(value: unknown): BMP280Reading {
   ) {
     throw new Error('The BMP280 reading has an invalid temperature.');
   }
+
   if (
     typeof row.pressure_hpa !== 'number'
     || !Number.isFinite(row.pressure_hpa)
@@ -38,9 +43,14 @@ function parseReading(value: unknown): BMP280Reading {
   ) {
     throw new Error('The BMP280 reading has invalid pressure.');
   }
-  if (typeof row.recorded_at !== 'string' || !Number.isFinite(Date.parse(row.recorded_at))) {
+
+  if (
+    typeof row.recorded_at !== 'string'
+    || !Number.isFinite(Date.parse(row.recorded_at))
+  ) {
     throw new Error('The BMP280 reading has an invalid timestamp.');
   }
+
   return {
     temperature_c: row.temperature_c,
     pressure_hpa: row.pressure_hpa,
@@ -51,6 +61,8 @@ function parseReading(value: unknown): BMP280Reading {
 export function useBMP280Sensor(enabled: boolean) {
   const lastSummaryRefresh = useRef(0);
   const lastSummaryReadingAt = useRef<string | null>(null);
+  const { ready, recordId } = useTestSession();
+
   const [state, setState] = useState<BMP280State>({
     reading: null,
     loading: false,
@@ -58,8 +70,13 @@ export function useBMP280Sensor(enabled: boolean) {
   });
 
   useEffect(() => {
-    if (!enabled) {
-      setState({ reading: null, loading: false, error: null });
+    if (!enabled || !ready || !recordId) {
+      setState({
+        reading: null,
+        loading: false,
+        error: null,
+      });
+
       lastSummaryRefresh.current = 0;
       lastSummaryReadingAt.current = null;
       return;
@@ -67,27 +84,42 @@ export function useBMP280Sensor(enabled: boolean) {
 
     let mounted = true;
     let polling = false;
-    setState({ reading: null, loading: true, error: null });
+
+    setState({
+      reading: null,
+      loading: true,
+      error: null,
+    });
 
     const poll = async () => {
       if (polling) return;
+
       polling = true;
+
       try {
         const { data, error } = await supabase
           .from('bmp280_readings')
           .select('temperature_c, pressure_hpa, recorded_at')
+          .eq('test_record_id', recordId)
           .order('recorded_at', { ascending: false })
           .order('id', { ascending: false })
           .limit(1)
           .maybeSingle();
-        if (error) throw new Error(error.message);
+
+        if (error) {
+          throw new Error(error.message);
+        }
+
         if (!mounted) return;
+
         const reading = data ? parseReading(data) : null;
+
         setState({
           reading,
           loading: false,
           error: null,
         });
+
         if (
           reading
           && reading.recorded_at !== lastSummaryReadingAt.current
@@ -102,7 +134,9 @@ export function useBMP280Sensor(enabled: boolean) {
           setState((current) => ({
             ...current,
             loading: false,
-            error: cause instanceof Error ? cause.message : 'Unable to load BMP280 readings.',
+            error: cause instanceof Error
+              ? cause.message
+              : 'Unable to load BMP280 readings.',
           }));
         }
       } finally {
@@ -111,12 +145,19 @@ export function useBMP280Sensor(enabled: boolean) {
     };
 
     void poll();
-    const timer = window.setInterval(() => void poll(), POLL_INTERVAL_MS);
+
+    const timer = window.setInterval(() => {
+      void poll();
+    }, POLL_INTERVAL_MS);
+
     return () => {
       mounted = false;
       window.clearInterval(timer);
     };
-  }, [enabled]);
+  }, [enabled, ready, recordId]);
 
-  return { ...state, enabled };
+  return {
+    ...state,
+    enabled,
+  };
 }
